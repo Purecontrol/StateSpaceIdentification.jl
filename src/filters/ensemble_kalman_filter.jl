@@ -37,6 +37,12 @@ mutable struct EnsembleKalmanFilter <: AbstractFilter
 
     end
 
+    function EnsembleKalmanFilter(model::ForecastingModel; n_particles=30)
+
+        new(n_particles, model.current_state, EnsembleKalmanFilterState(model.current_state, model.system.n_X, model.system.n_Y, n_particles))
+
+    end
+
 end
 
 
@@ -82,10 +88,6 @@ function filter!(filter_output::EnsembleKalmanFilterOutput, sys::StateSpaceSyste
 
     @inbounds for t in 1:n_obs
 
-        # Get current t_step
-        t_step = filter.init_state_x.t + (t-1)*sys.dt
-
-
         R = sys.R_t(exogenous_variables[t, :], parameters)
         Q = sys.Q_t(exogenous_variables[t, :], parameters)
 
@@ -123,7 +125,7 @@ function update_filter_state!(filter_state::EnsembleKalmanFilterState, y, M, H, 
         ef_states = filter_state.predicted_particles_swarm * (Matrix(I, n_particles, n_particles) .- 1 / n_particles)
         ef_obs = filter_state.observed_particles_swarm * (Matrix(I, n_particles, n_particles) .- 1 / n_particles)
         HPHt = (ef_obs * ef_obs') ./ (n_particles - 1)
-        PHt = ((ef_states*ef_obs') ./ (n_particles - 1))
+        PHt = ((ef_states * ef_obs') ./ (n_particles - 1))
 
         # Compute innovations and stuff for predicted and filtered states
         S = HPHt + Q[ivar_obs, ivar_obs]
@@ -139,12 +141,14 @@ function update_filter_state!(filter_state::EnsembleKalmanFilterState, y, M, H, 
     end
 
     # Forecast step
-    filter_state.predicted_particles_swarm =  M(filter_state.filtered_particles_swarm) + rand(MvNormal(R), n_particles)
+    filter_state.predicted_particles_swarm =  max.(M(filter_state.filtered_particles_swarm) + rand(MvNormal(R), n_particles), 0.001)
+    # filter_state.predicted_particles_swarm =  M(filter_state.filtered_particles_swarm) + rand(MvNormal(R), n_particles)
+
 
     # Update llk
     if size(ivar_obs, 1) > 0
         ṽ = y[ivar_obs] - vcat(mean(filter_state.observed_particles_swarm, dims=2)...)
-        filter_state.llk +=  - log(2*pi)/2 - (1/2) * (log(det(S)) + ṽ' * inv_S * ṽ)
+        filter_state.llk +=  - log(2*pi)/2 - (1/2) * (logdet(S) + ṽ' * inv_S * ṽ)
     end
 
 end

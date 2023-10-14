@@ -26,6 +26,12 @@ mutable struct EnsembleKalmanSmoother <: AbstractSmoother
 
     end
 
+    function EnsembleKalmanSmoother(model::ForecastingModel; n_particles=30)
+
+        new(n_particles, EnsembleKalmanSmootherState(model.system.n_X, model.system.n_Y, n_particles))
+
+    end
+
 end
 
 

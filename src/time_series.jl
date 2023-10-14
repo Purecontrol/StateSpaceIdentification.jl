@@ -84,11 +84,25 @@ struct TimeSeries{T <: AbstractState}
 
     end
 
+    function TimeSeries{T}(n_t::Integer, n_state::Integer, state::Vector{T}) where {T <: AbstractState}
+
+        new{T}(n_t, n_state, state)
+
+    end
+
 end
 
 
 function getindex(t::TimeSeries, i::Int)
     t.state[i]
+end
+
+function getindex(t::TimeSeries{T}, u::UnitRange{Int64}) where {T <: AbstractState}
+    TimeSeries{T}(length(u), t.n_state, t.state[u])
+end
+
+function getindex(t::TimeSeries{T}, u::Vector{Int64}) where {T <: AbstractState}
+    TimeSeries{T}(length(u), t.n_state, t.state[u])
 end
 
 
@@ -97,19 +111,21 @@ function lastindex(t::TimeSeries)
 end
 
 
-function plot(t::TimeSeries{GaussianStateStochasticProcess}; label="")
+function plot(t::TimeSeries{GaussianStateStochasticProcess}; label="", kwargs...)
     mean_process = vcat([t[i].μ_t for i in 1:t.n_t]...)
     var_process = vcat([t[i].σ_t for i in 1:t.n_t]...)
-    plot(mean_process - 1.96*sqrt.(var_process), fillrange = mean_process + 1.96*sqrt.(var_process), alpha=0.3, label="IC 95 % $label")
-    plot!(mean_process, label="Mean $label")
+    t_index = vcat([t[i].t for i in 1:t.n_t]...)
+    plot(t_index, mean_process - 1.96*sqrt.(var_process), fillrange = mean_process + 1.96*sqrt.(var_process), alpha=0.3, label="IC 95 % $label", kwargs...)
+    plot!(t_index, mean_process, label="Mean $label", kwargs...)
 end
 
 
-function plot!(t::TimeSeries{GaussianStateStochasticProcess}; label="")
+function plot!(t::TimeSeries{GaussianStateStochasticProcess}; label="", kwargs...)
     mean_process = vcat([t[i].μ_t for i in 1:t.n_t]...)
     var_process = vcat([t[i].σ_t for i in 1:t.n_t]...)
-    plot!(mean_process - 1.96*sqrt.(var_process), fillrange = mean_process + 1.96*sqrt.(var_process), alpha=0.3, label="IC 95 % $label")
-    plot!(mean_process, label="Mean $label")
+    t_index = vcat([t[i].t for i in 1:t.n_t]...)
+    plot!(t_index, mean_process - 1.96*sqrt.(var_process), fillrange = mean_process + 1.96*sqrt.(var_process), alpha=0.3, label="IC 95 % $label", kwargs...)
+    plot!(t_index, mean_process, label="Mean $label", kwargs...)
 end
 
 
@@ -117,17 +133,19 @@ function plot(t::TimeSeries{ParticleSwarmState}; label="", index = 1:t.n_state)
     mean_process = hcat([mean(t[i].particles_state, dims=2) for i in 1:t.n_t]...)'
     q_low = hcat([[quantile(t[i].particles_state[j, :], 0.025) for j in 1:t.n_state] for i in 1:t.n_t]...)'
     q_high = hcat([[quantile(t[i].particles_state[j, :], 0.975) for j in 1:t.n_state] for i in 1:t.n_t]...)'
-    
-    plot(q_low[:, index], fillrange = q_high[:, index], alpha=0.3, label = hcat("IC 95 % ".*label...))
-    plot!(mean_process[:, index], label = hcat("Mean ".*label...))
+    t_index = vcat([t[i].t for i in 1:t.n_t]...)
+
+    plot(t_index, q_low[:, index], fillrange = q_high[:, index], alpha=0.3, label = hcat("IC 95 % ".*label...))
+    plot!(t_index, mean_process[:, index], label = hcat("Mean ".*label...))
 end
 
 
-function plot!(t::TimeSeries{ParticleSwarmState}; label="")
+function plot!(t::TimeSeries{ParticleSwarmState}; label="", index = 1:t.n_state)
     mean_process = hcat([mean(t[i].particles_state, dims=2) for i in 1:t.n_t]...)'
     q_low = hcat([[quantile(t[i].particles_state[j, :], 0.025) for j in 1:t.n_state] for i in 1:t.n_t]...)'
     q_high = hcat([[quantile(t[i].particles_state[j, :], 0.975) for j in 1:t.n_state] for i in 1:t.n_t]...)'
-    
-    plot!(q_low[:, index], fillrange = q_high[:, index], alpha=0.3, label = hcat("IC 95 % ".*label...))
-    plot!(mean_process[:, index], label = hcat("Mean ".*label...))
+    t_index = vcat([t[i].t for i in 1:t.n_t]...)
+
+    plot!(t_index, q_low[:, index], fillrange = q_high[:, index], alpha=0.3)#, label = hcat("IC 95 % ".*label...))
+    plot!(t_index, mean_process[:, index])#, label = hcat("Mean ".*label...))
 end

@@ -32,6 +32,13 @@ mutable struct KalmanSmoother <: AbstractSmoother
 
     end
 
+
+    function KalmanSmoother(model::ForecastingModel)
+
+        new(KalmanSmootherState(model.system.n_X, model.system.n_Y))
+
+    end
+
 end
 
 

@@ -39,6 +39,12 @@ mutable struct KalmanFilter <: AbstractFilter
 
     end
 
+    function KalmanFilter(model::ForecastingModel)
+
+        new(model.current_state, KalmanFilterState(model.current_state, model.system.n_X, model.system.n_Y))
+
+    end
+
 end
 
 

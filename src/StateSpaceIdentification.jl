@@ -1,5 +1,6 @@
 module StateSpaceIdentification
 
+include("utils.jl")
 include("time_series.jl")
 include("systems/base.jl")
 include("models.jl")
@@ -35,11 +36,16 @@ export ForecastingModel
 export numerical_MLE
 export EM
 export EM_EnKS
+
+###### DEV IMPORT : TO STANDARDIZE #######
+export backward_smoothing
 export EM_EnKS2
+export ancestor_tracking_smoothing
+export SEM
 
 export filter, smoother, forecast
 
-export EnsembleKalmanFilter, KalmanFilter, ParticleFilter
+export EnsembleKalmanFilter, KalmanFilter, ParticleFilter, ConditionalParticleFilter
 export KalmanSmoother, EnsembleKalmanSmoother
 
 end # module StateSpaceIdentification
