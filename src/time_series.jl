@@ -146,6 +146,6 @@ function plot!(t::TimeSeries{ParticleSwarmState}; label="", index = 1:t.n_state)
     q_high = hcat([[quantile(t[i].particles_state[j, :], 0.975) for j in 1:t.n_state] for i in 1:t.n_t]...)'
     t_index = vcat([t[i].t for i in 1:t.n_t]...)
 
-    plot!(t_index, q_low[:, index], fillrange = q_high[:, index], alpha=0.3)#, label = hcat("IC 95 % ".*label...))
-    plot!(t_index, mean_process[:, index])#, label = hcat("Mean ".*label...))
+    plot!(t_index, q_low[:, index], fillrange = q_high[:, index], alpha=0.3, label = hcat("IC 95 % ".*label...))
+    plot!(t_index, mean_process[:, index], label = hcat("Mean ".*label...))
 end

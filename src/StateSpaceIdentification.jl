@@ -17,8 +17,8 @@ include("filters/kalman_filter.jl")
 include("filters/particle_filter.jl")
 
 include("smoothers/ancestor_sampling.jl")
-include("smoothers/ancestor_tracking.jl")
-include("smoothers/backward_smoothing.jl")
+include("smoothers/ancestor_tracking_smoother.jl")
+include("smoothers/backward_simulation_smoother.jl")
 include("smoothers/ensemble_kalman_smoother.jl")
 include("smoothers/kalman_smoother.jl")
 
@@ -36,16 +36,14 @@ export ForecastingModel
 export numerical_MLE
 export EM
 export EM_EnKS
+export SEM
 
 ###### DEV IMPORT : TO STANDARDIZE #######
-export backward_smoothing
 export EM_EnKS2
-export ancestor_tracking_smoothing
-export SEM
 
 export filter, smoother, forecast
 
 export EnsembleKalmanFilter, KalmanFilter, ParticleFilter, ConditionalParticleFilter
-export KalmanSmoother, EnsembleKalmanSmoother
+export KalmanSmoother, EnsembleKalmanSmoother, BackwardSimulationSmoother, AncestorTrackingSmoother
 
 end # module StateSpaceIdentification

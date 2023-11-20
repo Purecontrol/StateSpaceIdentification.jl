@@ -347,7 +347,10 @@ function EM_EnKS_old2(model::ForecastingModel, y_t, exogenous_variables, control
 end
 
 
-function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variables; lb = nothing, ub = nothing, n_filtering=30, n_smoothing=30, maxiters_em=100, abstol_em=1e-8, reltol_em=1e-8, optim_method=Optim.Newton(), diff_method=Optimization.AutoForwardDiff(), kwargs...)
+function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variables; optim_method=Optim.Newton(), diff_method=Optimization.AutoForwardDiff(), maxiters=100, abstol=1e-8, reltol=1e-8, p_filter = Dict(:n_particles => 30), p_smoothing = Dict(:n_particles => 30), p_opt_problem = Dict(), p_optim_method = Dict())
+
+    # Choice of filter and smoother
+    n_smoothing = p_smoothing[:n_particles]
 
     # Fixed values
     n_obs = size(y_t, 1)
@@ -397,30 +400,42 @@ function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variable
 
     llk_array = []
     parameters = model.parameters
-    @inbounds for i in 1:maxiters_em
+    time_filtering = 0.0
+    time_smoothing = 0.0
+    time_M = 0.0
+    @inbounds for i in 1:maxiters
 
-        if i > 2 && (abs(llk_array[end-1] - llk_array[end])  <  abstol_em || abs((llk_array[end-1] - llk_array[end])/(llk_array[end-1]))  <  reltol_em)
+        if i > 2 && (abs(llk_array[end-1] - llk_array[end])  <  abstol || abs((llk_array[end-1] - llk_array[end])/(llk_array[end-1]))  <  reltol)
             break
         end
 
-        filter_output, filtered_state, filtered_state_var= filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ParticleFilter(model, n_particles = n_filtering))
+        t1 = time()
+        filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ParticleFilter(model; p_filter...))
+        t2 = time()
+        time_filtering += t2-t1
 
         push!(llk_array, filter_output.llk / n_obs)
         println("Iter n° $(i-1) | Log Likelihood : ", llk_array[end])
 
-        smoothed_particles_swarm = backward_smoothing(y_t, exogenous_variables, filter_output, model, parameters; n_smoothing=n_smoothing)
+        t1 = time()
+        smoother_output = smoother(model, y_t, exogenous_variables, control_variables, filter_output; smoother_method=BackwardSimulationSmoother(model; p_smoothing...))
+        t2 = time()
+        time_smoothing += t2-t1
 
-        prob = Optimization.OptimizationProblem(optprob, parameters, smoothed_particles_swarm, lb = lb, ub = ub)
-        sol = solve(prob, optim_method; kwargs...)
+        t1 = time()
+        prob = Optimization.OptimizationProblem(optprob, parameters, smoother_output.smoothed_state; p_opt_problem...)
+        sol = solve(prob, optim_method; p_optim_method...)
         parameters = sol.minimizer
+        t2 = time()
+        time_M += t2-t1
     
     end
 
-    filter_output , filtered_state, filtered_state_var = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ParticleFilter(model, n_particles = n_filtering))
+    filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ParticleFilter(model; p_filter...))
 
     push!(llk_array, filter_output.llk / n_obs)
     println("Final | Log Likelihood : ", llk_array[end])
 
-    return parameters, (llk = llk_array, )
+    return parameters, (llk = llk_array, time_filtering=time_filtering/maxiters, time_smoothing=time_smoothing/maxiters, time_M=time_M/maxiters)
 
 end

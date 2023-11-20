@@ -30,16 +30,17 @@ mutable struct EnsembleKalmanFilter <: AbstractFilter
     n_particles::Int64
     init_state_x::GaussianStateStochasticProcess
     filter_state::EnsembleKalmanFilterState
+    positive::Bool
 
-    function EnsembleKalmanFilter(init_state, n_X, n_Y, n_particles)
+    function EnsembleKalmanFilter(init_state, n_X, n_Y, n_particles, positive)
 
-        new(n_particles, init_state, EnsembleKalmanFilterState(init_state, n_X, n_Y, n_particles))
+        new(n_particles, init_state, EnsembleKalmanFilterState(init_state, n_X, n_Y, n_particles), positive)
 
     end
 
-    function EnsembleKalmanFilter(model::ForecastingModel; n_particles=30)
+    function EnsembleKalmanFilter(model::ForecastingModel; n_particles=30, positive=false)
 
-        new(n_particles, model.current_state, EnsembleKalmanFilterState(model.current_state, model.system.n_X, model.system.n_Y, n_particles))
+        new(n_particles, model.current_state, EnsembleKalmanFilterState(model.current_state, model.system.n_X, model.system.n_Y, n_particles), positive)
 
     end
 
@@ -100,7 +101,7 @@ function filter!(filter_output::EnsembleKalmanFilterOutput, sys::StateSpaceSyste
             return observation(sys, x, exogenous_variables[t, :], parameters)
         end
 
-        update_filter_state!(filter.filter_state, y_t[t, :], M, H, R, Q, filter.n_particles)
+        update_filter_state!(filter.filter_state, y_t[t, :], M, H, R, Q, filter.n_particles, filter.positive)
 
         save_state_in_filter_output!(filter_output, filter.filter_state, t)
 
@@ -111,7 +112,7 @@ function filter!(filter_output::EnsembleKalmanFilterOutput, sys::StateSpaceSyste
 end
 
 
-function update_filter_state!(filter_state::EnsembleKalmanFilterState, y, M, H, R, Q, n_particles)
+function update_filter_state!(filter_state::EnsembleKalmanFilterState, y, M, H, R, Q, n_particles, positive)
 
     # Check the number of correct observations
     ivar_obs = findall(.!isnan.(y))
@@ -141,9 +142,11 @@ function update_filter_state!(filter_state::EnsembleKalmanFilterState, y, M, H, 
     end
 
     # Forecast step
-    filter_state.predicted_particles_swarm =  max.(M(filter_state.filtered_particles_swarm) + rand(MvNormal(R), n_particles), 0.001)
-    # filter_state.predicted_particles_swarm =  M(filter_state.filtered_particles_swarm) + rand(MvNormal(R), n_particles)
-
+    if positive
+        filter_state.predicted_particles_swarm =  max.(M(filter_state.filtered_particles_swarm) + rand(MvNormal(R), n_particles), 0.001)
+    else
+        filter_state.predicted_particles_swarm =  M(filter_state.filtered_particles_swarm) + rand(MvNormal(R), n_particles)
+    end
 
     # Update llk
     if size(ivar_obs, 1) > 0
