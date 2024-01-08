@@ -52,21 +52,24 @@ function EM(model::ForecastingModel{GaussianLinearStateSpaceSystem}, y_t, exogen
         L = 0
         @inbounds for t in 1:n_obs
 
+            # Get current t_step
+            t_step = model.current_state.t + (t-1)*model.system.dt
+
             ivar_obs = ivar_obs_vec[t]
 
-            R_i = model.system.R_t(exogenous_variables[t, :], parameters)
-            A_i = model.system.A_t(exogenous_variables[t, :], parameters)
-            B_i = model.system.B_t(exogenous_variables[t, :], parameters)
-            c_i = model.system.c_t(exogenous_variables[t, :], parameters)
+            R_i = model.system.R_t(exogenous_variables[t, :], parameters, t_step)
+            A_i = model.system.A_t(exogenous_variables[t, :], parameters, t_step)
+            B_i = model.system.B_t(exogenous_variables[t, :], parameters, t_step)
+            c_i = model.system.c_t(exogenous_variables[t, :], parameters, t_step)
 
             η_i = smoothed_values.smoothed_state[t+1].μ_t - (A_i*smoothed_values.smoothed_state[t].μ_t + B_i*control_variables[t, :] + c_i)
             V_η_i = smoothed_values.smoothed_state[t+1].σ_t - smoothed_values.autocov_state[t]*transpose(A_i) - A_i*transpose(smoothed_values.autocov_state[t]) + A_i*smoothed_values.smoothed_state[t].σ_t*transpose(A_i)
             
             if valid_obs_vec[t]
 
-                H_i = model.system.H_t(exogenous_variables[t, :], parameters)
-                d_i = model.system.d_t(exogenous_variables[t, :], parameters)
-                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters)
+                H_i = model.system.H_t(exogenous_variables[t, :], parameters, t_step)
+                d_i = model.system.d_t(exogenous_variables[t, :], parameters, t_step)
+                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters, t_step)
 
                 ϵ_i = y_t[t, ivar_obs] - (H_i[ivar_obs, :]*smoothed_values.smoothed_state[t].μ_t + d_i[ivar_obs])
                 V_ϵ_i = H_i[ivar_obs, :]*smoothed_values.smoothed_state[t].σ_t*transpose(H_i[ivar_obs, :])
@@ -132,21 +135,21 @@ function EM_EnKS(model::ForecastingModel, y_t, exogenous_variables, control_vari
         @inbounds for t in 1:n_obs
 
             # Get current t_step
-            # t_step = t_start + (t-1)*dt
+            t_step = model.current_state.t + (t-1)*model.system.dt
 
             ivar_obs = ivar_obs_vec[t]
 
-            R_i = model.system.R_t(exogenous_variables[t, :], parameters)
+            R_i = model.system.R_t(exogenous_variables[t, :], parameters, t_step)
 
-            M_i = transition(model.system, smoothed_values.smoothed_state[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters)
+            M_i = transition(model.system, smoothed_values.smoothed_state[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters, t_step)
     
             η_i = smoothed_values.smoothed_state[t+1].particles_state - M_i
             Ω = (η_i*η_i') ./ (n_particles - 1)
 
             if valid_obs_vec[t]
 
-                H_i = observation(model.system, smoothed_values.smoothed_state[t].particles_state, exogenous_variables[t, :], parameters)[ivar_obs, :]
-                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters)
+                H_i = observation(model.system, smoothed_values.smoothed_state[t].particles_state, exogenous_variables[t, :], parameters, t_step)[ivar_obs, :]
+                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters, t_step)
                 ϵ_i = y_t[t, ivar_obs] .- H_i
                 Σ = (ϵ_i*ϵ_i') ./ (n_particles - 1)
 
@@ -373,21 +376,21 @@ function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variable
         @inbounds for t in 1:n_obs
 
             # Get current t_step
-            # t_step = t_start + (t-1)*dt
+            t_step = model.current_state.t + (t-1)*model.system.dt
 
             ivar_obs = ivar_obs_vec[t]
 
-            R_i = model.system.R_t(exogenous_variables[t, :], parameters)
+            R_i = model.system.R_t(exogenous_variables[t, :], parameters, t_step)
 
-            M_i = transition(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters)
+            M_i = transition(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters, t_step)
     
             η_i = smoothed_values[t+1].particles_state - M_i
             Ω = (η_i*η_i') ./ (n_smoothing - 1)
 
             if valid_obs_vec[t]
 
-                H_i = observation(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], parameters)[ivar_obs, :]
-                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters)
+                H_i = observation(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], parameters, t_step)[ivar_obs, :]
+                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters, t_step)
                 ϵ_i = y_t[t, ivar_obs] .- H_i
                 Σ = (ϵ_i*ϵ_i') ./ (n_smoothing - 1)
 
@@ -467,21 +470,21 @@ function SEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_vari
         @inbounds for t in 1:n_obs
 
             # Get current t_step
-            # t_step = t_start + (t-1)*dt
+            t_step = model.current_state.t + (t-1)*model.system.dt
 
             ivar_obs = ivar_obs_vec[t]
 
-            R_i = model.system.R_t(exogenous_variables[t, :], parameters)
+            R_i = model.system.R_t(exogenous_variables[t, :], parameters, t_step)
 
-            M_i = transition(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters)
+            M_i = transition(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters, t_step)
     
             η_i = smoothed_values[t+1].particles_state - M_i
             Ω = (η_i*η_i') ./ (n_smoothing - 1)
 
             if valid_obs_vec[t]
 
-                H_i = observation(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], parameters)[ivar_obs, :]
-                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters)
+                H_i = observation(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], parameters, t_step)[ivar_obs, :]
+                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters, t_step)
                 ϵ_i = y_t[t, ivar_obs] .- H_i
                 Σ = (ϵ_i*ϵ_i') ./ (n_smoothing - 1)
 
@@ -565,21 +568,21 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         @inbounds for t in 1:n_obs
 
             # Get current t_step
-            # t_step = t_start + (t-1)*dt
+            t_step = model.current_state.t + (t-1)*model.system.dt
 
             ivar_obs = ivar_obs_vec[t]
 
-            R_i = model.system.R_t(exogenous_variables[t, :], parameters)
+            R_i = model.system.R_t(exogenous_variables[t, :], parameters, t_step)
 
-            M_i = transition(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters)
+            M_i = transition(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters, t_step)
     
             η_i = smoothed_values[t+1].particles_state - M_i
             Ω = (η_i*η_i') ./ (n_smoothing - 1)
 
             if valid_obs_vec[t]
 
-                H_i = observation(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], parameters)[ivar_obs, :]
-                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters)
+                H_i = observation(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], parameters, t_step)[ivar_obs, :]
+                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters, t_step)
                 ϵ_i = y_t[t, ivar_obs] .- H_i
                 Σ = (ϵ_i*ϵ_i') ./ (n_smoothing - 1)
 
@@ -632,7 +635,7 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         time_M += t2-t1
 
         # Update non parametric estimate of m
-        ns = 2
+        ns = 1
         if ns == 1
             idx_selected_particules = sample(collect(1:(n_smoothing-1)))
             new_x = hcat(map((x) -> x.particles_state[:, idx_selected_particules], smoother_output.smoothed_state)...)'

@@ -109,16 +109,19 @@ function filter!(filter_output::ParticleFilterOutput, sys::StateSpaceSystem, fil
 
     @inbounds for t in 1:n_obs
 
-        R = sys.R_t(exogenous_variables[t, :], parameters)
-        Q = sys.Q_t(exogenous_variables[t, :], parameters)
+        # Get current t_step
+        t_step = filter.init_state_x.t + (t-1)*sys.dt
+
+        R = sys.R_t(exogenous_variables[t, :], parameters, t_step)
+        Q = sys.Q_t(exogenous_variables[t, :], parameters, t_step)
 
         # Define actual transition and observation operators
         function M(x)
-            return transition(sys, x, exogenous_variables[t, :], control_variables[t, :], parameters)
+            return transition(sys, x, exogenous_variables[t, :], control_variables[t, :], parameters, t_step)
         end
 
         function H(x)
-            return observation(sys, x, exogenous_variables[t, :], parameters)
+            return observation(sys, x, exogenous_variables[t, :], parameters, t_step)
         end
 
         update_filter_state!(filter.filter_state, y_t[t, :], M, H, R, Q, filter.n_particles, filter.positive)
@@ -138,16 +141,19 @@ function filter!(sys::StateSpaceSystem, filter::ParticleFilter, y_t, exogenous_v
 
     @inbounds for t in 1:n_obs
 
-        R = sys.R_t(exogenous_variables[t, :], parameters)
-        Q = sys.Q_t(exogenous_variables[t, :], parameters)
+        # Get current t_step
+        t_step = filter.init_state_x.t + (t-1)*sys.dt
+
+        R = sys.R_t(exogenous_variables[t, :], parameters, t_step)
+        Q = sys.Q_t(exogenous_variables[t, :], parameters, t_step)
 
         # Define actual transition and observation operators
         function M(x)
-            return transition(sys, x, exogenous_variables[t, :], control_variables[t, :], parameters)
+            return transition(sys, x, exogenous_variables[t, :], control_variables[t, :], parameters, t_step)
         end
 
         function H(x)
-            return observation(sys, x, exogenous_variables[t, :], parameters)
+            return observation(sys, x, exogenous_variables[t, :], parameters, t_step)
         end
 
         update_filter_state!(filter.filter_state, y_t[t, :], M, H, R, Q, filter.n_particles, filter.positive)

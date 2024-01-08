@@ -126,16 +126,16 @@ mutable struct GaussianNonParametricStateSpaceSystem <: StateSpaceSystem
 end
 
 
-function transition(ssm::GaussianNonParametricStateSpaceSystem, current_x, exogenous_variables, control_variables, parameters) 
+function transition(ssm::GaussianNonParametricStateSpaceSystem, current_x, exogenous_variables, control_variables, parameters, t) 
 
-    return ssm.M_t(current_x, exogenous_variables, control_variables, ssm.llrs)
+    return ssm.M_t(current_x, exogenous_variables, control_variables, ssm.llrs, t)
 
 end
 
 
-function observation(ssm::GaussianNonParametricStateSpaceSystem, current_x, exogenous_variables, parameters) 
+function observation(ssm::GaussianNonParametricStateSpaceSystem, current_x, exogenous_variables, parameters, t) 
 
-    return ssm.H_t(current_x, exogenous_variables, parameters)
+    return ssm.H_t(current_x, exogenous_variables, parameters, t)
 
 end
 
@@ -204,7 +204,10 @@ function k_choice(ssm::GaussianNonParametricStateSpaceSystem, x_t, y_t, exogenou
 
         err = 0
         for idx in 1:(n_t)
-            mean_xf = ssm.M_t(x_t[idx, :], exogenous_variables[idx, :], control_variables[idx, :], llr_exp)
+
+            t_step = 0
+
+            mean_xf = ssm.M_t(x_t[idx, :], exogenous_variables[idx, :], control_variables[idx, :], llr_exp, t_step)
             innov = y_t[idx, :] .- mean_xf
             err += mean((innov)^2)
         end

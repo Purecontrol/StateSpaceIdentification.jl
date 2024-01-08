@@ -71,11 +71,14 @@ function smoother!(smoother_output::BackwardSimulationSmootherOutput, filter_out
     # Backward recursions
     @inbounds for t in (n_obs):-1:1
 
+        # Get current t_step
+        t_step = filter_output.predicted_particles_swarm[1].t + (t-1)*sys.dt
+
         predicted_particle_swarm = filter_output.predicted_particles_swarm[t].particles_state
         predicted_particles_swarm_mean = filter_output.predicted_particles_swarm_mean[t+1, :, :]
         sampling_weights = filter_output.sampling_weights[t+1, :]
 
-        σ = pinv(Matrix(sys.R_t(exogenous_variables[t, :], parameters)))
+        σ = pinv(Matrix(sys.R_t(exogenous_variables[t, :], parameters, t_step)))
 
         update_smoother_state!(smoother.smoother_state, predicted_particle_swarm, predicted_particles_swarm_mean, sampling_weights, σ, smoother.n_particles, n_filtering, sys.n_X)
 

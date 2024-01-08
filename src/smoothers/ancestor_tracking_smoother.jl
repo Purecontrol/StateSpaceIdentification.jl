@@ -72,6 +72,9 @@ function smoother!(smoother_output::AncestorTrackingSmootherOutput, filter_outpu
     # Backward recursions
     @inbounds for t in (n_obs):-1:1
 
+        # Get current t_step
+        t_step = filter_output.predicted_particles_swarm[1].t + (t-1)*sys.dt
+
         predicted_particle_swarm = filter_output.predicted_particles_swarm[t].particles_state
         I_t = filter_output.ancestor_indices[t, :]
 

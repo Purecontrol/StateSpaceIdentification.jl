@@ -99,7 +99,7 @@ function smoother!(smoother_output::KalmanSmootherOutput, filter_output::KalmanF
         t_step = filter_output.predicted_state[1].t + (t-1)*sys.dt
 
         # Get current matrix H
-        H = sys.H_t(exogenous_variables[t, :], parameters)
+        H = sys.H_t(exogenous_variables[t, :], parameters, t_step)
         inv_S = inv(filter_output.S[t])
         v = filter_output.v[t]
         L = filter_output.L[t]

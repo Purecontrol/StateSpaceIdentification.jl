@@ -108,15 +108,15 @@ function default_smoother(model::ForecastingModel{GaussianLinearStateSpaceSystem
 
 end
 
-function transition(ssm::GaussianLinearStateSpaceSystem, current_μ, exogenous_variables, control_variables, parameters) 
+function transition(ssm::GaussianLinearStateSpaceSystem, current_μ, exogenous_variables, control_variables, parameters, t) 
 
-    return ssm.A_t(exogenous_variables, parameters)*current_μ .+ ssm.B_t(exogenous_variables, parameters)*control_variables .+ ssm.c_t(exogenous_variables, parameters)
+    return ssm.A_t(exogenous_variables, parameters, t)*current_μ .+ ssm.B_t(exogenous_variables, parameters, t)*control_variables .+ ssm.c_t(exogenous_variables, parameters, t)
 
 end
 
 
-function observation(ssm::GaussianLinearStateSpaceSystem, current_μ, exogenous_variables, parameters) 
+function observation(ssm::GaussianLinearStateSpaceSystem, current_μ, exogenous_variables, parameters, t) 
 
-    return ssm.H_t(exogenous_variables, parameters)*current_μ .+ ssm.d_t(exogenous_variables, parameters)
+    return ssm.H_t(exogenous_variables, parameters, t)*current_μ .+ ssm.d_t(exogenous_variables, parameters, t)
 
 end

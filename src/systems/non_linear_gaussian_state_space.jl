@@ -47,15 +47,15 @@ mutable struct GaussianNonLinearStateSpaceSystem <: StateSpaceSystem
 
 end
 
-function transition(ssm::GaussianNonLinearStateSpaceSystem, current_x, exogenous_variables, control_variables, parameters) 
+function transition(ssm::GaussianNonLinearStateSpaceSystem, current_x, exogenous_variables, control_variables, parameters, t) 
 
-    return ssm.M_t(current_x, exogenous_variables, control_variables, parameters)
+    return ssm.M_t(current_x, exogenous_variables, control_variables, parameters, t)
 
 end
 
-function observation(ssm::GaussianNonLinearStateSpaceSystem, current_x, exogenous_variables, parameters) 
+function observation(ssm::GaussianNonLinearStateSpaceSystem, current_x, exogenous_variables, parameters, t) 
 
-    return ssm.H_t(current_x, exogenous_variables, parameters)
+    return ssm.H_t(current_x, exogenous_variables, parameters, t)
 
 end
 
