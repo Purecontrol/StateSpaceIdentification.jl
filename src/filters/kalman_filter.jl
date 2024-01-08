@@ -133,14 +133,15 @@ end
 
 
 # KF for optimization
-function filter!(sys::GaussianLinearStateSpaceSystem, filter::KalmanFilter, y_t, exogenous_variables, control_variables, parameters)
+function filter!(sys::GaussianLinearStateSpaceSystem, filter_method::KalmanFilter, y_t, exogenous_variables, control_variables, parameters)
 
     n_obs = size(y_t, 1)
 
+    zeta = 0.0
     @inbounds for t in 1:n_obs
 
         # Get current t_step
-        t_step = filter.init_state_x.t + (t-1)*sys.dt
+        t_step = filter_method.init_state_x.t + (t-1)*sys.dt
 
         # Get current matrix A, B, H and Q
         A = sys.A_t(exogenous_variables[t, :], parameters)
@@ -151,11 +152,11 @@ function filter!(sys::GaussianLinearStateSpaceSystem, filter::KalmanFilter, y_t,
         R = sys.R_t(exogenous_variables[t, :], parameters)
         Q = sys.Q_t(exogenous_variables[t, :], parameters)
 
-        update_filter_state!(filter.filter_state, y_t[t, :], control_variables[t, :], A, B, c, H, d, R, Q)
+        update_filter_state!(filter_method.filter_state, y_t[t, :], control_variables[t, :], A, B, c, H, d, R, Q)
 
     end
 
-    return filter.filter_state.llk / n_obs
+    return filter_method.filter_state.llk / n_obs
 
 end
 

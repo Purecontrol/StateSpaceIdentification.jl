@@ -25,7 +25,7 @@ mutable struct EnsembleKalmanFilterState
 end
 
 
-mutable struct EnsembleKalmanFilter <: AbstractFilter
+mutable struct EnsembleKalmanFilter <: SMCFilter
 
     n_particles::Int64
     init_state_x::GaussianStateStochasticProcess
@@ -47,7 +47,7 @@ mutable struct EnsembleKalmanFilter <: AbstractFilter
 end
 
 
-mutable struct EnsembleKalmanFilterOutput <: FilterOutput
+mutable struct EnsembleKalmanFilterOutput <: SMCFilterOutput
 
     # Predicted, filtered and observed states
     predicted_particles_swarm::TimeSeries{ParticleSwarmState}
@@ -108,6 +108,34 @@ function filter!(filter_output::EnsembleKalmanFilterOutput, sys::StateSpaceSyste
     end
 
     return filter_output
+
+end
+
+
+# KF for optimization
+function filter!(sys::StateSpaceSystem, filter::EnsembleKalmanFilter, y_t, exogenous_variables, control_variables, parameters)
+
+    n_obs = size(y_t, 1)
+
+    @inbounds for t in 1:n_obs
+
+        R = sys.R_t(exogenous_variables[t, :], parameters)
+        Q = sys.Q_t(exogenous_variables[t, :], parameters)
+
+        # Define actual transition and observation operators
+        function M(x)
+            return transition(sys, x, exogenous_variables[t, :], control_variables[t, :], parameters)
+        end
+
+        function H(x)
+            return observation(sys, x, exogenous_variables[t, :], parameters)
+        end
+
+        update_filter_state!(filter.filter_state, y_t[t, :], M, H, R, Q, filter.n_particles, filter.positive)
+
+    end
+
+    return filter.filter_state.llk / n_obs
 
 end
 

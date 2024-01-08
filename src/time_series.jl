@@ -1,5 +1,6 @@
 import Base: getindex
 import Base: lastindex
+import Base:length, iterate
 import Plots.plot
 import Plots.plot!
 
@@ -105,6 +106,22 @@ function getindex(t::TimeSeries{T}, u::Vector{Int64}) where {T <: AbstractState}
     TimeSeries{T}(length(u), t.n_state, t.state[u])
 end
 
+function length(t::TimeSeries)
+    return t.n_t
+end
+
+function iterate(t::TimeSeries)
+        return t[1], 2
+end
+
+function iterate(t::TimeSeries, i)
+
+    if i <= length(t)
+        return t[i], i+1
+    else
+        return nothing
+    end
+end
 
 function lastindex(t::TimeSeries)
     t.n_t

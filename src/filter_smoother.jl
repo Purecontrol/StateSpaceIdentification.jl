@@ -1,5 +1,7 @@
 abstract type FilterOutput end
 
+abstract type SMCFilterOutput <: FilterOutput end
+
 
 function filter(model::ForecastingModel, y_t, exogenous_variables, control_variables; filter::AbstractFilter=default_filter(model), parameters=model.parameters)
 
@@ -12,7 +14,7 @@ end
 
 function loglike(model::ForecastingModel, y_t, exogenous_variables, control_variables; filter::AbstractFilter=default_filter(model), parameters=model.parameters)
 
-    return filter!(model.system, filter, y_t, exogenous_variables, control_variables, parameters)
+    return filter!(model.system, deepcopy(filter), y_t, exogenous_variables, control_variables, parameters)
 
 end
 

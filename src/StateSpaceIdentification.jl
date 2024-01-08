@@ -7,6 +7,7 @@ include("models.jl")
 
 include("systems/non_linear_gaussian_state_space.jl")
 include("systems/gaussian_linear_state_space.jl")
+include("systems/non_parametric_gaussian_state_space.jl")
 
 include("filters/base.jl")
 include("smoothers/base.jl")
@@ -15,8 +16,8 @@ include("filter_smoother.jl")
 include("filters/ensemble_kalman_filter.jl")
 include("filters/kalman_filter.jl")
 include("filters/particle_filter.jl")
+include("filters/conditional_particle_filter.jl")
 
-include("smoothers/ancestor_sampling.jl")
 include("smoothers/ancestor_tracking_smoother.jl")
 include("smoothers/backward_simulation_smoother.jl")
 include("smoothers/ensemble_kalman_smoother.jl")
@@ -29,6 +30,9 @@ export time_series, models, fit, filter_smoother
 
 export GaussianLinearStateSpaceSystem
 export GaussianNonLinearStateSpaceSystem
+export GaussianNonParametricStateSpaceSystem
+
+export LLR
 
 export GaussianStateStochasticProcess
 export ForecastingModel
@@ -37,9 +41,13 @@ export numerical_MLE
 export EM
 export EM_EnKS
 export SEM
+export SEM_CPF
+export npSEM_CPF
 
 ###### DEV IMPORT : TO STANDARDIZE #######
 export EM_EnKS2
+
+export k_choice
 
 export filter, smoother, forecast
 
