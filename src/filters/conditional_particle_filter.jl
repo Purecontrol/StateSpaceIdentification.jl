@@ -20,9 +20,27 @@ mutable struct ConditionalParticleFilterState
 
     function ConditionalParticleFilterState(init_state::GaussianStateStochasticProcess, n_X, n_Y, n_particles, conditional_particle)
         
-        predicted_particles_swarm = init_state.μ_t .+ init_state.σ_t*rand(Normal(), n_X, n_particles)
+        predicted_particles_swarm = init_state.μ_t .+ sqrt.(init_state.σ_t)*rand(Normal(), n_X, n_particles)
 
         predicted_particles_swarm_mean = reshape(repeat(init_state.μ_t, n_particles), (n_X, n_particles))
+
+        new(predicted_particles_swarm, predicted_particles_swarm_mean, zeros(Float64, n_X, n_particles), zeros(Float64, n_Y, n_particles), (1/n_particles).*ones(Float64, n_particles), zeros(Int64, n_particles), zeros(Float64, n_X), zeros(Float64, n_X, n_X), 0.0, conditional_particle)
+    end
+
+    function ConditionalParticleFilterState(init_state::ParticleSwarmState, n_X, n_Y, n_particles, conditional_particle)
+
+        n_particles_init_state = size(init_state.particles_state, 2)
+        if n_particles_init_state != n_particles
+            @warn "The number of particles of the filter is different from the number of particles of the current state."
+
+            selected_idx_particles = sample_discrete((1/n_particles_init_state).*ones(n_particles_init_state), n_particles)[1, :]
+            init_state.particles_state = init_state.particles_state[:, selected_idx_particles]
+
+        end
+        
+        predicted_particles_swarm = init_state.particles_state
+
+        predicted_particles_swarm_mean = reshape(repeat(vcat(mean(predicted_particles_swarm, dims=2)...), n_particles), (n_X, n_particles))
 
         new(predicted_particles_swarm, predicted_particles_swarm_mean, zeros(Float64, n_X, n_particles), zeros(Float64, n_Y, n_particles), (1/n_particles).*ones(Float64, n_particles), zeros(Int64, n_particles), zeros(Float64, n_X), zeros(Float64, n_X, n_X), 0.0, conditional_particle)
     end
@@ -33,12 +51,12 @@ end
 mutable struct ConditionalParticleFilter <: SMCFilter
 
     n_particles::Int64
-    init_state_x::GaussianStateStochasticProcess
+    init_state_x::AbstractState
     filter_state::ConditionalParticleFilterState
     positive::Bool
     ancestor_conditional_particle_method::String
 
-    function ConditionalParticleFilter(init_state, n_X, n_Y, n_particles, positive, conditional_particle, ancestor_conditional_particle_method)
+    function ConditionalParticleFilter(init_state::AbstractState, n_X, n_Y, n_particles, positive, conditional_particle, ancestor_conditional_particle_method)
 
         new(n_particles, init_state, ConditionalParticleFilterState(init_state, n_X, n_Y, n_particles, conditional_particle), positive, ancestor_conditional_particle_method)
 
@@ -46,7 +64,7 @@ mutable struct ConditionalParticleFilter <: SMCFilter
 
     function ConditionalParticleFilter(model::ForecastingModel; n_particles=30, positive=false, conditional_particle=nothing, ancestor_conditional_particle_method="tracking")
 
-        new(n_particles, model.current_state, ConditionalParticleFilterState(model.current_state, model.system.n_X, model.system.n_Y, n_particles, conditional_particle), positive, ancestor_conditional_particle_method)
+        return ConditionalParticleFilter(model.current_state::AbstractState, model.system.n_X, model.system.n_Y, n_particles, positive, conditional_particle, ancestor_conditional_particle_method)
 
     end
 
@@ -96,6 +114,11 @@ function get_filter_output(filter::ConditionalParticleFilter, model, y_t)
 
     return ConditionalParticleFilterOutput(model, y_t, filter.n_particles)
 
+end
+
+
+function get_last_state(filter_output::ConditionalParticleFilterOutput)
+    return filter_output.predicted_particles_swarm[end]
 end
 
 

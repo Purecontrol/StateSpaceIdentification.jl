@@ -21,9 +21,28 @@ mutable struct ParticleFilterState
 
     function ParticleFilterState(init_state::GaussianStateStochasticProcess, n_X, n_Y, n_particles)
         
-        predicted_particles_swarm = init_state.μ_t .+ init_state.σ_t*rand(Normal(), n_X, n_particles)
+        predicted_particles_swarm = init_state.μ_t .+ sqrt.(init_state.σ_t)*rand(Normal(), n_X, n_particles)
 
         predicted_particles_swarm_mean = reshape(repeat(init_state.μ_t, n_particles), (n_X, n_particles))
+
+        new(predicted_particles_swarm, predicted_particles_swarm_mean, zeros(Float64, n_X, n_particles), zeros(Float64, n_Y, n_particles), (1/n_particles).*ones(Float64, n_particles), zeros(Int64, n_particles), zeros(Float64, n_X), zeros(Float64, n_X, n_X), 0.0)
+
+    end
+
+    function ParticleFilterState(init_state::ParticleSwarmState, n_X, n_Y, n_particles)
+
+        n_particles_init_state = size(init_state.particles_state, 2)
+        if n_particles_init_state != n_particles
+            @warn "The number of particles of the filter is different from the number of particles of the current state."
+
+            selected_idx_particles = sample_discrete((1/n_particles_init_state).*ones(n_particles_init_state), n_particles)[1, :]
+            init_state.particles_state = init_state.particles_state[:, selected_idx_particles]
+
+        end
+        
+        predicted_particles_swarm = init_state.particles_state
+
+        predicted_particles_swarm_mean = reshape(repeat(vcat(mean(predicted_particles_swarm, dims=2)...), n_particles), (n_X, n_particles))
 
         new(predicted_particles_swarm, predicted_particles_swarm_mean, zeros(Float64, n_X, n_particles), zeros(Float64, n_Y, n_particles), (1/n_particles).*ones(Float64, n_particles), zeros(Int64, n_particles), zeros(Float64, n_X), zeros(Float64, n_X, n_X), 0.0)
 
@@ -35,11 +54,11 @@ end
 mutable struct ParticleFilter <: SMCFilter
 
     n_particles::Int64
-    init_state_x::GaussianStateStochasticProcess
+    init_state_x::AbstractState
     filter_state::ParticleFilterState
     positive::Bool
 
-    function ParticleFilter(init_state, n_X, n_Y, n_particles, positive)
+    function ParticleFilter(init_state::AbstractState, n_X, n_Y, n_particles, positive)
 
         new(n_particles, init_state, ParticleFilterState(init_state, n_X, n_Y, n_particles), positive)
 
@@ -47,7 +66,7 @@ mutable struct ParticleFilter <: SMCFilter
 
     function ParticleFilter(model::ForecastingModel; n_particles=30, positive=false)
 
-        new(n_particles, model.current_state, ParticleFilterState(model.current_state, model.system.n_X, model.system.n_Y, n_particles), positive)
+        return ParticleFilter(model.current_state, model.system.n_X, model.system.n_Y, n_particles, positive)
 
     end
 
@@ -97,6 +116,11 @@ function get_filter_output(filter::ParticleFilter, model, y_t)
 
     return ParticleFilterOutput(model, y_t, filter.n_particles)
 
+end
+
+
+function get_last_state(filter_output::ParticleFilterOutput)
+    return filter_output.predicted_particles_swarm[end]
 end
 
 

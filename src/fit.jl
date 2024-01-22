@@ -635,16 +635,29 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         time_M += t2-t1
 
         # Update non parametric estimate of m
-        ns = 1
-        if ns == 1
-            idx_selected_particules = sample(collect(1:(n_smoothing-1)))
-            new_x = hcat(map((x) -> x.particles_state[:, idx_selected_particules], smoother_output.smoothed_state)...)'
-            idx = Int.(1:(size(new_x, 1)-2))
-        else
-            new_x = map((x) -> x.particles_state, smoother_output.smoothed_state)
-            println(size(new_x))
-        end
-        update_M(idx, new_x, exogenous_variables, control_variables, model.system.llrs)
+        ns = n_smoothing-1
+        # if ns == 1
+        #     idx_selected_particules = sample(collect(1:(n_smoothing-1)))
+        #     new_x = hcat(map((x) -> x.particles_state[:, idx_selected_particules], smoother_output.smoothed_state)...)'
+        #     idx = Int.(1:(size(new_x, 1)-2))
+        #     t_idx = [model.current_state.t + (t-1)*model.system.dt for t in 1:(n_obs-1)]
+        # else
+        #     idxes_selected_particules = sample(collect(1:(n_smoothing-1)), ns)
+        #     new_x = hcat([hcat(map((x) -> x.particles_state[:, i], smoother_output.smoothed_state)...)'[1:(end-1)] for i in idxes_selected_particules]...)
+        #     # new_x2 = hcat(map((x) -> x.particles_state[:, 2], smoother_output.smoothed_state)...)'
+        #     # new_x = hcat([new_x1[1:(end-1)], new_x2[1:(end-1)]]...)
+        #     idx = repeat(Int.(1:(n_obs - 1)), ns)
+        #     t_idx = repeat([model.current_state.t + (t-1)*model.system.dt for t in 1:(n_obs-1)], ns)
+        # end
+        
+        idxes_selected_particules = sample(collect(1:(n_smoothing-1)), ns)
+        new_x = hcat([hcat(map((x) -> x.particles_state[:, i], smoother_output.smoothed_state)...)'[1:(end-1)] for i in idxes_selected_particules]...)
+        # new_x2 = hcat(map((x) -> x.particles_state[:, 2], smoother_output.smoothed_state)...)'
+        # new_x = hcat([new_x1[1:(end-1)], new_x2[1:(end-1)]]...)
+        idx = repeat(Int.(1:(n_obs - 1)), ns)
+        t_idx = repeat([model.current_state.t + (t-1)*model.system.dt for t in 1:(n_obs-1)], ns)
+
+        update_M(idx, t_idx, new_x, exogenous_variables, control_variables, model.system.llrs)
 
     end
 

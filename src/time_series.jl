@@ -57,6 +57,12 @@ mutable struct ParticleSwarmState <: AbstractState
 
     end
 
+    function ParticleSwarmState(n_particles::Int64, t::Float64, particles_state::Array{Float64, 2})
+
+        new(n_particles, t, particles_state)
+
+    end
+
 end
 
 

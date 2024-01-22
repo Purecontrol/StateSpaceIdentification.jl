@@ -16,8 +16,27 @@ mutable struct EnsembleKalmanFilterState
 
     function EnsembleKalmanFilterState(init_state::GaussianStateStochasticProcess, n_X, n_Y, n_particles)
         
-        predicted_particles_swarm = init_state.μ_t .+ init_state.σ_t*rand(Normal(), n_X, n_particles)
+        predicted_particles_swarm = init_state.μ_t .+ sqrt.(init_state.σ_t)*rand(Normal(), n_X, n_particles)
 
+        new(predicted_particles_swarm, zeros(Float64, n_X, n_particles), zeros(Float64, n_Y, n_particles), 0.0)
+
+    end
+
+    function EnsembleKalmanFilterState(init_state::ParticleSwarmState, n_X, n_Y, n_particles)
+
+        n_particles_init_state = size(init_state.particles_state, 2)
+        if n_particles_init_state != n_particles
+            @warn "The number of particles of the filter is different from the number of particles of the current state."
+
+            μ_t = vcat(mean(init_state.particles_state, dims=2)...)
+            σ_t = var(init_state.particles_state, dims=2)
+
+            predicted_particles_swarm = init_state.μ_t .+ sqrt.(init_state.σ_t)*rand(Normal(), n_X, n_particles)
+
+        else   
+            predicted_particles_swarm = init_state.particles_state
+        end
+        
         new(predicted_particles_swarm, zeros(Float64, n_X, n_particles), zeros(Float64, n_Y, n_particles), 0.0)
 
     end
@@ -28,7 +47,7 @@ end
 mutable struct EnsembleKalmanFilter <: SMCFilter
 
     n_particles::Int64
-    init_state_x::GaussianStateStochasticProcess
+    init_state_x::AbstractState
     filter_state::EnsembleKalmanFilterState
     positive::Bool
 
@@ -40,7 +59,7 @@ mutable struct EnsembleKalmanFilter <: SMCFilter
 
     function EnsembleKalmanFilter(model::ForecastingModel; n_particles=30, positive=false)
 
-        new(n_particles, model.current_state, EnsembleKalmanFilterState(model.current_state, model.system.n_X, model.system.n_Y, n_particles), positive)
+        return EnsembleKalmanFilter(model.current_state, model.system.n_X, model.system.n_Y, n_particles, positive)
 
     end
 
@@ -77,6 +96,11 @@ function get_filter_output(filter::EnsembleKalmanFilter, model, y_t)
 
     return EnsembleKalmanFilterOutput(model, y_t, filter.n_particles)
 
+end
+
+
+function get_last_state(filter_output::EnsembleKalmanFilterOutput)
+    return filter_output.predicted_particles_swarm[end]
 end
 
 

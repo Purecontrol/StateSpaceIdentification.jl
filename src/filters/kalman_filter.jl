@@ -33,15 +33,32 @@ mutable struct KalmanFilter <: AbstractFilter
     init_state_x::GaussianStateStochasticProcess
     filter_state::KalmanFilterState
 
-    function KalmanFilter(init_state, n_X, n_Y)
+    """
+    Constructor with gaussian init state.
+    """
+    function KalmanFilter(init_state::GaussianStateStochasticProcess, n_X, n_Y)
 
         new(init_state, KalmanFilterState(init_state, n_X, n_Y))
 
     end
 
+
+    """
+    Constructor with particle init state.
+    """
+    function KalmanFilter(init_state::ParticleSwarmState, n_X, n_Y)
+
+        μ_t = vcat(mean(init_state.particles_state, dims=2)...)
+        σ_t = var(init_state.particles_state, dims=2)
+        gaussian_init_state = GaussianStateStochasticProcess(init_state.t, μ_t, σ_t)
+
+        new(gaussian_init_state, KalmanFilterState(gaussian_init_state, n_X, n_Y))
+
+    end
+
     function KalmanFilter(model::ForecastingModel)
 
-        new(model.current_state, KalmanFilterState(model.current_state, model.system.n_X, model.system.n_Y))
+        return KalmanFilter(model.current_state, model.system.n_X, model.system.n_Y)
 
     end
 
@@ -89,6 +106,11 @@ function get_filter_output(filter::KalmanFilter, model, y_t)
 
     return KalmanFilterOutput(model, y_t)
 
+end
+
+
+function get_last_state(filter_output::KalmanFilterOutput)
+    return filter_output.predicted_state[end]
 end
 
 

@@ -5,8 +5,8 @@ include("time_series.jl")
 include("systems/base.jl")
 include("models.jl")
 
-include("systems/non_linear_gaussian_state_space.jl")
 include("systems/gaussian_linear_state_space.jl")
+include("systems/non_linear_gaussian_state_space.jl")
 include("systems/non_parametric_gaussian_state_space.jl")
 
 include("filters/base.jl")
@@ -53,5 +53,7 @@ export filter, smoother, forecast
 
 export EnsembleKalmanFilter, KalmanFilter, ParticleFilter, ConditionalParticleFilter
 export KalmanSmoother, EnsembleKalmanSmoother, BackwardSimulationSmoother, AncestorTrackingSmoother
+
+export convert
 
 end # module StateSpaceIdentification

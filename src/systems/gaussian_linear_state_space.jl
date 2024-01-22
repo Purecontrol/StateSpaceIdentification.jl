@@ -53,39 +53,44 @@ mutable struct GaussianLinearStateSpaceSystem <: StateSpaceSystem
 end
 
 
-function forecast(system::GaussianLinearStateSpaceSystem, current_state::GaussianStateStochasticProcess, exogenous_variables, control_variables, parameters; n_steps_ahead=1)
+function forecast(system::GaussianLinearStateSpaceSystem, current_state::AbstractState, exogenous_variables, control_variables, parameters; n_steps_ahead=1)
 
-    predicted_state = TimeSeries{GaussianStateStochasticProcess}(n_steps_ahead+1, system.n_X)
-    predicted_obs = TimeSeries{GaussianStateStochasticProcess}(n_steps_ahead+1, system.n_Y)
+    if isa(current_state, ParticleSwarmState)
+        μ_t = vcat(mean(current_state.particles_state, dims=2)...)
+        σ_t = var(current_state.particles_state, dims=2)
+        gaussian_init_state = GaussianStateStochasticProcess(current_state.t, μ_t, σ_t)
+    else
+        gaussian_init_state = current_state
+    end
+
+    # Set up output vectors
+    predicted_state = TimeSeries{GaussianStateStochasticProcess}(n_steps_ahead+1, system.n_X, [current_state.t + (step-1)*system.dt for step  in 1:(n_steps_ahead+1)])
+    predicted_obs = TimeSeries{GaussianStateStochasticProcess}(n_steps_ahead+1, system.n_Y, [current_state.t + (step-1)*system.dt for step  in 1:(n_steps_ahead+1)])
 
     # Define init conditions
-    current_H = system.H_t(exogenous_variables[1, :], parameters)
-    predicted_state[1].t = current_state.t
-    predicted_state[1].μ_t = current_state.μ_t
-    predicted_state[1].σ_t = current_state.σ_t
-    predicted_obs[1].t = current_state.t
-    predicted_obs[1].μ_t = current_H*current_state.μ_t
-    predicted_obs[1].σ_t = transpose(current_H)*current_state.σ_t*current_H + system.Q_t(exogenous_variables[1, :], parameters)
+    current_H = system.H_t(exogenous_variables[1, :], parameters, gaussian_init_state.t)
+    predicted_state[1].μ_t = gaussian_init_state.μ_t
+    predicted_state[1].σ_t = gaussian_init_state.σ_t
+    predicted_obs[1].μ_t = current_H*gaussian_init_state.μ_t
+    predicted_obs[1].σ_t = transpose(current_H)*gaussian_init_state.σ_t*current_H + system.Q_t(exogenous_variables[1, :], parameters, current_state.t)
 
     @inbounds for step in 2:(n_steps_ahead+1)
 
         # Define current t_step
-        t_step = current_state.t + (step-1)*system.dt
+        t_step = gaussian_init_state.t + (step-1)*system.dt
 
         # Get current matrix A and B
-        A = system.A_t(exogenous_variables[step, :], parameters)
-        B = system.B_t(exogenous_variables[step, :], parameters)
-        H = system.H_t(exogenous_variables[step, :], parameters)
+        A = system.A_t(exogenous_variables[step, :], parameters, t_step)
+        B = system.B_t(exogenous_variables[step, :], parameters, t_step)
+        H = system.H_t(exogenous_variables[step, :], parameters, t_step)
         
         # Update predicted state and covariance
-        predicted_state[step].t = t_step
-        predicted_state[step].μ_t = A*predicted_state[step-1].μ_t + B*control_variables[step-1, :] + system.c_t(exogenous_variables[step, :], parameters)
-        predicted_state[step].σ_t = transpose(A)*predicted_state[step-1].σ_t*A + system.R_t(exogenous_variables[step, :], parameters)
+        predicted_state[step].μ_t = A*predicted_state[step-1].μ_t + B*control_variables[step, :] + system.c_t(exogenous_variables[step, :], parameters, t_step)
+        predicted_state[step].σ_t = transpose(A)*predicted_state[step-1].σ_t*A + system.R_t(exogenous_variables[step, :], parameters, t_step)
         
         # Update observed state and covariance
-        predicted_obs[step].t = t_step
-        predicted_obs[step].μ_t = H*predicted_state[step].μ_t + system.d_t(exogenous_variables[step, :], parameters)
-        predicted_obs[step].σ_t = transpose(H)*predicted_state[step].σ_t*H + system.Q_t(exogenous_variables[step, :], parameters)
+        predicted_obs[step].μ_t = H*predicted_state[step].μ_t + system.d_t(exogenous_variables[step, :], parameters, t_step)
+        predicted_obs[step].σ_t = transpose(H)*predicted_state[step].σ_t*H + system.Q_t(exogenous_variables[step, :], parameters, t_step)
 
 
     end
@@ -97,7 +102,7 @@ end
 
 function default_filter(model::ForecastingModel{GaussianLinearStateSpaceSystem})
 
-    return KalmanFilter(model.current_state, model.system.n_X, model.system.n_Y)
+    return KalmanFilter(model)
 
 end
 
@@ -107,6 +112,7 @@ function default_smoother(model::ForecastingModel{GaussianLinearStateSpaceSystem
     return KalmanSmoother(model.system.n_X, model.system.n_Y)
 
 end
+
 
 function transition(ssm::GaussianLinearStateSpaceSystem, current_μ, exogenous_variables, control_variables, parameters, t) 
 
