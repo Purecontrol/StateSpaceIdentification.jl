@@ -100,7 +100,7 @@ end
 
 
 function get_last_state(filter_output::EnsembleKalmanFilterOutput)
-    return filter_output.predicted_particles_swarm[end]
+    return filter_output.filtered_particles_swarm[end]
 end
 
 
