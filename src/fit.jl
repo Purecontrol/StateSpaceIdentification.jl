@@ -22,16 +22,16 @@ function numerical_MLE(model::ForecastingModel, y_t, exogenous_variables, contro
     optprob = OptimizationFunction(inverse_llk, diff_method)
     prob = Optimization.OptimizationProblem(optprob, model.parameters, [])
     sol = []
-    try
-        if verbose == true
-            sol = solve(prob, optim_method; callback = callback_verbose, kwargs...)
-        else
-            sol = solve(prob, optim_method; kwargs...)
-        end
-    catch e
-        println("Singular Value")
-        return []
+    # try
+    if verbose == true
+        sol = solve(prob, optim_method; callback = callback_verbose, kwargs...)
+    else
+        sol = solve(prob, optim_method; kwargs...)
     end
+    # catch e
+    #     println("Singular Value")
+    #     return []
+    # end
 
     return sol
 
@@ -74,9 +74,13 @@ function EM(model::ForecastingModel{GaussianLinearStateSpaceSystem}, y_t, exogen
                 ϵ_i = y_t[t, ivar_obs] - (H_i[ivar_obs, :]*smoothed_values.smoothed_state[t].μ_t + d_i[ivar_obs])
                 V_ϵ_i = H_i[ivar_obs, :]*smoothed_values.smoothed_state[t].σ_t*transpose(H_i[ivar_obs, :])
 
-                L -= (sum(logdet(Q_i[ivar_obs, ivar_obs])) +  tr((ϵ_i*transpose(ϵ_i) + V_ϵ_i)*pinv(Q_i[ivar_obs, ivar_obs])) )
+                L -= (logdet(Q_i[ivar_obs, ivar_obs]) +  tr((ϵ_i*transpose(ϵ_i) + V_ϵ_i)*inv(Q_i[ivar_obs, ivar_obs])) )
+                # L -= (logdet(Q_i[ivar_obs, ivar_obs]) +  tr((transpose(ϵ_i)*ϵ_i .+ V_ϵ_i)*pinv(Q_i[ivar_obs, ivar_obs])) )
+                # L -= (logdet(Q_i[ivar_obs, ivar_obs]) +  transpose(ϵ_i)*pinv(Q_i[ivar_obs, ivar_obs])*ϵ_i + tr(V_ϵ_i*pinv(Q_i[ivar_obs, ivar_obs])) )
             end
-            L -= (sum(logdet(R_i)) + tr((η_i*transpose(η_i) + V_η_i)*pinv(R_i)) )
+            L -= (logdet(R_i) + tr((η_i*transpose(η_i) + V_η_i)*inv(R_i)) )
+            # L -= (logdet(R_i) + tr((transpose(η_i)*η_i .+ V_η_i)*pinv(R_i)) )
+            # L -= (logdet(R_i) + transpose(η_i)*pinv(R_i)*η_i + tr(V_η_i*pinv(R_i)) )
 
         end
 
@@ -105,6 +109,7 @@ function EM(model::ForecastingModel{GaussianLinearStateSpaceSystem}, y_t, exogen
         prob = Optimization.OptimizationProblem(optprob, parameters, smoother_ouput)
         sol = solve(prob, optim_method; kwargs...)
         parameters = sol.minimizer
+        # print(parameters)
     
     end
 
@@ -175,12 +180,13 @@ function EM_EnKS(model::ForecastingModel, y_t, exogenous_variables, control_vari
         end
         
         filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=EnsembleKalmanFilter(model, n_particles=n_particles))
+        # filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ParticleFilter(model, n_particles=n_particles))
 
         push!(llk_array, filter_output.llk / n_obs)
         println("Iter n° $(i-1) | Log Likelihood : ", llk_array[end])
 
         smoother_ouput = smoother(model, y_t, exogenous_variables, control_variables, filter_output; parameters=parameters, smoother_method=EnsembleKalmanSmoother(model, n_particles=n_particles))
-
+        # smoother_ouput = smoother(model, y_t, exogenous_variables, control_variables, filter_output; parameters=parameters, smoother_method=BackwardSimulationSmoother(model, n_particles=n_particles))
         prob = Optimization.OptimizationProblem(optprob, parameters, smoother_ouput, lb = lb, ub = ub)
         sol = solve(prob, optim_method; kwargs...)
         parameters = sol.minimizer
@@ -188,6 +194,7 @@ function EM_EnKS(model::ForecastingModel, y_t, exogenous_variables, control_vari
     end
 
     filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=EnsembleKalmanFilter(model, n_particles=n_particles))
+    # filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ParticleFilter(model, n_particles=n_particles))
 
     push!(llk_array, filter_output.llk / n_obs)
     println("Final | Log Likelihood : ", llk_array[end])
@@ -356,10 +363,7 @@ function EM_EnKS_old2(model::ForecastingModel, y_t, exogenous_variables, control
 end
 
 
-function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variables; optim_method=Optim.Newton(), diff_method=Optimization.AutoForwardDiff(), maxiters=100, abstol=1e-8, reltol=1e-8, p_filter = Dict(:n_particles => 30), p_smoothing = Dict(:n_particles => 30), p_opt_problem = Dict(), p_optim_method = Dict())
-
-    # Choice of filter and smoother
-    n_smoothing = p_smoothing[:n_particles]
+function EM_EKS(model::ForecastingModel, y_t, exogenous_variables, control_variables; lb = nothing, ub = nothing, maxiters_em=100, abstol_em=1e-8, reltol_em=1e-8, optim_method=Optim.Newton(), diff_method=Optimization.AutoForwardDiff(), kwargs...)
 
     # Fixed values
     n_obs = size(y_t, 1)
@@ -372,31 +376,30 @@ function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variable
     # Q function
     function Q(parameters, smoothed_values)
 
-        L = 0.0
+        L = 0
         @inbounds for t in 1:n_obs
-
-            # Get current t_step
-            t_step = model.current_state.t + (t-1)*model.system.dt
 
             ivar_obs = ivar_obs_vec[t]
 
-            R_i = model.system.R_t(exogenous_variables[t, :], parameters, t_step)
+            R_i = model.system.R_t(exogenous_variables[t, :], parameters)
+            M_i = transition(model.system, smoothed_values.smoothed_state[t].μ_t, exogenous_variables[t, :], control_variables[t, :], parameters)
+            dM_i = model.system.dM_t(smoothed_values.smoothed_state[t].μ_t, exogenous_variables[t, :], control_variables[t, :], parameters)
 
-            M_i = transition(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters, t_step)
-    
-            η_i = smoothed_values[t+1].particles_state - M_i
-            Ω = (η_i*η_i') ./ (n_smoothing - 1)
-
+            η_i = smoothed_values.smoothed_state[t+1].μ_t - M_i
+            V_η_i = smoothed_values.smoothed_state[t+1].σ_t - smoothed_values.autocov_state[t]*transpose(dM_i) - dM_i*transpose(smoothed_values.autocov_state[t]) + dM_i*smoothed_values.smoothed_state[t].σ_t*transpose(dM_i)
+            
             if valid_obs_vec[t]
 
-                H_i = observation(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], parameters, t_step)[ivar_obs, :]
-                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters, t_step)
-                ϵ_i = y_t[t, ivar_obs] .- H_i
-                Σ = (ϵ_i*ϵ_i') ./ (n_smoothing - 1)
+                H_i = observation(model.system, smoothed_values.smoothed_state[t].μ_t, exogenous_variables[t, :], parameters)
+                dH_i = model.system.dH_t(smoothed_values.smoothed_state[t].μ_t, exogenous_variables[t, :], parameters)
+                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters)
 
-                L += - (sum(logdet(Q_i[ivar_obs, ivar_obs])) +  tr(Σ*pinv(Q_i[ivar_obs, ivar_obs])) )
+                ϵ_i = y_t[t, ivar_obs] - H_i[ivar_obs, :]
+                V_ϵ_i = dH_i[ivar_obs, :]*smoothed_values.smoothed_state[t].σ_t*transpose(dH_i[ivar_obs, :])
+
+                L -= (sum(logdet(Q_i[ivar_obs, ivar_obs])) +  tr((ϵ_i*transpose(ϵ_i) + V_ϵ_i)*pinv(Q_i[ivar_obs, ivar_obs])) )
             end
-            L += - (sum(logdet(R_i)) + tr(Ω*pinv(R_i)) )
+            L -= (sum(logdet(R_i)) + tr((η_i*transpose(η_i) + V_η_i)*pinv(R_i)) )
 
         end
 
@@ -409,13 +412,141 @@ function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variable
 
     llk_array = []
     parameters = model.parameters
+    @inbounds for i in 1:maxiters_em
+
+        if i > 2 && (abs(llk_array[end-1] - llk_array[end])  <  abstol_em || abs((llk_array[end-1] - llk_array[end])/(llk_array[end-1]))  <  reltol_em)
+            break
+        end
+
+        filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ExtendedKalmanFilter(model))
+
+        push!(llk_array, filter_output.llk / n_obs)
+        println("Iter n° $(i-1) | Log Likelihood : ", llk_array[end])
+
+        smoother_output = smoother(model, y_t, exogenous_variables, control_variables, filter_output; parameters=parameters, smoother_method=ExtendedKalmanSmoother(model))
+
+        prob = Optimization.OptimizationProblem(optprob, parameters, smoother_output, lb = lb, ub = ub)
+        sol = solve(prob, optim_method; kwargs...)
+        parameters = sol.minimizer
+    
+    end
+
+    filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ExtendedKalmanFilter(model))
+
+    push!(llk_array, filter_output.llk / n_obs)
+    println("Final | Log Likelihood : ", llk_array[end])
+
+    return parameters, (llk = llk_array, )
+
+end
+
+
+mutable struct RollingStd
+    count::Int
+    buffer::Vector{Float64}
+    max_size::Int
+end
+
+function RollingStd(max_size::Int)
+    return RollingStd(0.0, Float64[], max_size)
+end
+
+function update!(rs::RollingStd, new_data::Float64)
+    if rs.count < rs.max_size
+        push!(rs.buffer, new_data)
+        rs.count += 1
+    else
+        popfirst!(rs.buffer)
+        push!(rs.buffer, new_data)
+    end
+end
+
+function get_value(rs::RollingStd)
+    if rs.count < rs.max_size
+        return NaN
+    else
+        return std(rs.buffer)
+    end
+end
+
+
+function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variables; optim_method=Optim.Newton(), diff_method=Optimization.AutoForwardDiff(), maxiters=100, abstol=1e-4, reltol=1e-5, p_filter = Dict(:n_particles => 30), p_smoothing = Dict(:n_particles => 30), p_opt_problem = Dict(), p_optim_method = Dict())
+
+    # Choice of filter and smoother
+    n_smoothing = p_smoothing[:n_particles]
+
+    # Fixed values
+    n_obs = size(y_t, 1)
+    t_start = model.current_state.t
+    dt = model.system.dt
+
+    ivar_obs_vec = [findall(.!isnan.(y_t[t, :])) for t in 1:n_obs]
+    valid_obs_vec = [length(ivar_obs_vec) > 0 for t in 1:n_obs]
+
+    function Q(parameters, smoothed_values)
+
+        L = 0.0
+        # Σ = similar(smoothed_values[1].particles_state)
+        # Ω = similar(smoothed_values[1].particles_state)
+        @inbounds for t in 1:n_obs
+
+            # Get current t_step
+            t_step = model.current_state.t + (t-1)*model.system.dt
+
+            ivar_obs = ivar_obs_vec[t]
+
+            R_i = model.system.R_t(exogenous_variables[t, :], parameters, t_step)
+
+            M_i = transition(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], control_variables[t, :], parameters, t_step)
+    
+            η_i = smoothed_values[t+1].particles_state - M_i
+            Ω = (η_i*η_i') ./ (n_smoothing-1)
+            if valid_obs_vec[t]
+
+                H_i = observation(model.system, smoothed_values[t].particles_state, exogenous_variables[t, :], parameters, t_step)[ivar_obs, :]
+                Q_i = model.system.Q_t(exogenous_variables[t, :], parameters, t_step)
+                ϵ_i = y_t[t, ivar_obs] .- H_i
+                Σ = (ϵ_i*ϵ_i') ./ (n_smoothing-1)
+                L -= (sum(logdet(Q_i[ivar_obs, ivar_obs])) +  tr(Σ*pinv(Q_i[ivar_obs, ivar_obs])) )
+            end
+            L -= (sum(logdet(R_i)) + tr(Ω*pinv(R_i)) )
+
+        end
+
+        return - L/n_obs
+
+    end
+
+    # M function
+    optprob = OptimizationFunction(Q, diff_method)
+
+    rs = RollingStd(10)
+    llk_array = []
+    std_array = []
+    parameters_array = []
+    parameters = model.parameters
     time_filtering = 0.0
     time_smoothing = 0.0
     time_M = 0.0
+    alpha = 0.1
+    termination_flag = false
+    iter_saem = 10
+    maxiters_saem = maxiters
     @inbounds for i in 1:maxiters
 
-        if i > 2 && (abs(llk_array[end-1] - llk_array[end])  <  abstol || abs((llk_array[end-1] - llk_array[end])/(llk_array[end-1]))  <  reltol)
+        if i > 2 && !termination_flag && (abs(std_array[end-1] - std_array[end])  <  abstol || abs((std_array[end-1] - std_array[end])/(std_array[end-1]))  <  reltol)
+            @info "Algorithm has converged. Continued for $iter_saem iterations to stabilize solution."
+            termination_flag = true
+            maxiters_saem = i + iter_saem
+            parameters = mean(parameters_array[(end-5):end])
+        end
+
+        if i > maxiters_saem
             break
+        end
+
+        if i >= maxiters - iter_saem
+            termination_flag = true
         end
 
         t1 = time()
@@ -423,18 +554,27 @@ function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variable
         t2 = time()
         time_filtering += t2-t1
 
+
+        update!(rs, filter_output.llk / n_obs)
         push!(llk_array, filter_output.llk / n_obs)
+        push!(std_array, get_value(rs))
+
         println("Iter n° $(i-1) | Log Likelihood : ", llk_array[end])
 
         t1 = time()
-        smoother_output = smoother(model, y_t, exogenous_variables, control_variables, filter_output; smoother_method=BackwardSimulationSmoother(model; p_smoothing...))
+        smoother_output = smoother(model, y_t, exogenous_variables, control_variables, filter_output; parameters=parameters, smoother_method=BackwardSimulationSmoother(model; p_smoothing...))
         t2 = time()
         time_smoothing += t2-t1
 
         t1 = time()
         prob = Optimization.OptimizationProblem(optprob, parameters, smoother_output.smoothed_state; p_opt_problem...)
         sol = solve(prob, optim_method; p_optim_method...)
-        parameters = sol.minimizer
+        push!(parameters_array, sol.minimizer)
+        if termination_flag == false
+            parameters = sol.minimizer
+        else
+            parameters = alpha*sol.minimizer + (1-alpha)*parameters
+        end
         t2 = time()
         time_M += t2-t1
     
@@ -445,12 +585,12 @@ function SEM(model::ForecastingModel, y_t, exogenous_variables, control_variable
     push!(llk_array, filter_output.llk / n_obs)
     println("Final | Log Likelihood : ", llk_array[end])
 
-    return parameters, (llk = llk_array, time_filtering=time_filtering/maxiters, time_smoothing=time_smoothing/maxiters, time_M=time_M/maxiters)
+    return parameters, (parameters = parameters_array, llk = llk_array, std = std_array)
 
 end
 
 
-function SEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_variables; optim_method=Optim.Newton(), diff_method=Optimization.AutoForwardDiff(), maxiters=100, abstol=1e-8, reltol=1e-8, p_filter = Dict(:n_particles => 30), p_smoothing = Dict(:n_particles => 30), p_opt_problem = Dict(), p_optim_method = Dict())
+function SEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_variables; optim_method=Optim.Newton(), diff_method=Optimization.AutoForwardDiff(), maxiters=100, abstol=1e-8, reltol=1e-8, p_filter = Dict(:n_particles => 30), p_smoothing = Dict(:n_particles => 30), p_opt_problem = Dict(), p_optim_method = Dict(), conditional_particle=nothing)
 
     # Choice of filter and smoother
     n_smoothing = p_smoothing[:n_particles]
@@ -488,9 +628,9 @@ function SEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_vari
                 ϵ_i = y_t[t, ivar_obs] .- H_i
                 Σ = (ϵ_i*ϵ_i') ./ (n_smoothing - 1)
 
-                L += - (sum(logdet(Q_i[ivar_obs, ivar_obs])) +  tr(Σ*pinv(Q_i[ivar_obs, ivar_obs])) )
+                L += - (logdet(Q_i[ivar_obs, ivar_obs]) +  tr(Σ*pinv(Q_i[ivar_obs, ivar_obs])) )
             end
-            L += - (sum(logdet(R_i)) + tr(Ω*pinv(R_i)) )
+            L += - (logdet(R_i) + tr(Ω*pinv(R_i)) )
 
         end
 
@@ -501,40 +641,68 @@ function SEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_vari
     # M function
     optprob = OptimizationFunction(Q, diff_method)
 
+    rs = RollingStd(10)
     llk_array = []
+    std_array = []
+    parameters_array = []
     parameters = model.parameters
     time_filtering = 0.0
     time_smoothing = 0.0
     time_M = 0.0
-    conditional_particle = nothing
+    alpha = 0.1
+    termination_flag = false
+    iter_saem = 10
+    maxiters_saem = maxiters
     @inbounds for i in 1:maxiters
 
-        if i > 2 && (abs(llk_array[end-1] - llk_array[end])  <  abstol || abs((llk_array[end-1] - llk_array[end])/(llk_array[end-1]))  <  reltol)
+        if i > 2 && !termination_flag && (abs(std_array[end-1] - std_array[end])  <  abstol || abs((std_array[end-1] - std_array[end])/(std_array[end-1]))  <  reltol)
+            @info "Algorithm has converged. Continued for $iter_saem iterations to stabilize solution."
+            termination_flag = true
+            maxiters_saem = i + iter_saem
+            parameters = mean(parameters_array[(end-5):end])
+        end
+
+        if i > maxiters_saem
             break
+        end
+
+        if i >= maxiters - iter_saem
+            termination_flag = true
         end
 
         t1 = time()
         filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ConditionalParticleFilter(model; conditional_particle = conditional_particle, p_filter...))
+        # filter_output = filter(model, y_t, exogenous_variables, control_variables; parameters=parameters, filter=ParticleFilter(model; p_filter...))
         t2 = time()
         time_filtering += t2-t1
 
+        update!(rs, filter_output.llk / n_obs)
         push!(llk_array, filter_output.llk / n_obs)
+        push!(std_array, get_value(rs))
+
         println("Iter n° $(i-1) | Log Likelihood : ", llk_array[end])
 
         t1 = time()
-        smoother_output = smoother(model, y_t, exogenous_variables, control_variables, filter_output; smoother_method=BackwardSimulationSmoother(model; p_smoothing...))
+        smoother_output = smoother(model, y_t, exogenous_variables, control_variables, filter_output; parameters=parameters, smoother_method=BackwardSimulationSmoother(model; p_smoothing...))
         t2 = time()
         time_smoothing += t2-t1
 
         # Set conditional particle
         conditional_particle = hcat(map((x) -> x.particles_state[:, end], smoother_output.smoothed_state)...)'
 
+        # println(Q(parameters, smoother_output.smoothed_state))
         t1 = time()
         prob = Optimization.OptimizationProblem(optprob, parameters, smoother_output.smoothed_state; p_opt_problem...)
         sol = solve(prob, optim_method; p_optim_method...)
-        parameters = sol.minimizer
+        push!(parameters_array, sol.minimizer)
+        if termination_flag == false
+            parameters = sol.minimizer
+        else
+            parameters = alpha*sol.minimizer + (1-alpha)*parameters
+        end
         t2 = time()
         time_M += t2-t1
+        # println(Q(parameters, smoother_output.smoothed_state))
     
     end
 
@@ -543,7 +711,7 @@ function SEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_vari
     push!(llk_array, filter_output.llk / n_obs)
     println("Final | Log Likelihood : ", llk_array[end])
 
-    return parameters, (llk = llk_array, time_filtering=time_filtering/maxiters, time_smoothing=time_smoothing/maxiters, time_M=time_M/maxiters)
+    return parameters, (parameters = parameters_array, llk = llk_array, std = std_array)
 
 end
 
@@ -620,7 +788,7 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         println("Iter n° $(i-1) | Log Likelihood : ", llk_array[end])
 
         t1 = time()
-        smoother_output = smoother(model, y_t, exogenous_variables, control_variables, filter_output; smoother_method=BackwardSimulationSmoother(model; p_smoothing...))
+        smoother_output = smoother(model, y_t, exogenous_variables, control_variables, filter_output; parameters=parameters, smoother_method=BackwardSimulationSmoother(model; p_smoothing...))
         t2 = time()
         time_smoothing += t2-t1
 
@@ -658,6 +826,12 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         t_idx = repeat([model.current_state.t + (t-1)*model.system.dt for t in 1:(n_obs-1)], ns)
 
         update_M(idx, t_idx, new_x, exogenous_variables, control_variables, model.system.llrs)
+
+        k_list = collect(1:10:1000)
+        opt_k, E = k_choice(model.system, new_x[1:(end-1), 1:1], new_x[2:(end), 1:1], exogenous_variables, control_variables, t_idx; k_list = k_list)
+        for llr in model.system.llrs
+            llr.k = opt_k
+        end
 
     end
 

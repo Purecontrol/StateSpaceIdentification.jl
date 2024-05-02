@@ -1,5 +1,6 @@
 abstract type AbstractFilter end
 
-abstract type LinearFilter <: AbstractFilter end
+abstract type SimulationBasedFilter <: AbstractFilter end
+abstract type DeterministicFilter <: AbstractFilter end
 
-abstract type SMCFilter <: AbstractFilter end
+abstract type SMCFilter <: SimulationBasedFilter end

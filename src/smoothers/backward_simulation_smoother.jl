@@ -78,7 +78,8 @@ function smoother!(smoother_output::BackwardSimulationSmootherOutput, filter_out
         predicted_particles_swarm_mean = filter_output.predicted_particles_swarm_mean[t+1, :, :]
         sampling_weights = filter_output.sampling_weights[t+1, :]
 
-        σ = pinv(Matrix(sys.R_t(exogenous_variables[t, :], parameters, t_step)))
+        σ = inv(sys.R_t(exogenous_variables[t, :], parameters, t_step))
+        # σ = sys.R_t(exogenous_variables[t, :], parameters, t_step)
 
         update_smoother_state!(smoother.smoother_state, predicted_particle_swarm, predicted_particles_swarm_mean, sampling_weights, σ, smoother.n_particles, n_filtering, sys.n_X)
 
@@ -94,18 +95,41 @@ end
 function update_smoother_state!(smoother_state::BackwardSimulationState, Xp, Xp_mean, W, σ, n_smoothing, n_filtering, n_X)
 
     v = smoother_state.smoothed_particles_swarm[:, :, [CartesianIndex()]] .- Xp_mean[:, [CartesianIndex()], :]
-
     smoothing_weights = zeros(n_smoothing, n_filtering)
     @inbounds for i in 1:n_X
         @inbounds for j in 1:n_X
-            smoothing_weights += exp.((-1/2)*v[i, :, :]*σ[i, j].*v[j, :, :])
+            smoothing_weights += -0.5*v[i, :, :]*σ[i, j].*v[j, :, :]
         end
     end
-
-    smoothing_weights = smoothing_weights.*W[[CartesianIndex()], :]
+    logmax = maximum(smoothing_weights, dims=2)
+    smoothing_weights = exp.(smoothing_weights .- logmax).*W[[CartesianIndex()], :]
     smoothing_weights ./= sum(smoothing_weights, dims=2) 
+    # for i in 1:n_smoothing
+    #     innov = repeat(smoother_state.smoothed_particles_swarm[:, i], 1, n_filtering) - Xp_mean[:, :]
+    #     logmax = max((-0.5 * sum(innov' * σ .* innov', dims=2))...)
+    #     wei_res = vcat(exp.(-0.5 * sum(innov' * σ .* innov', dims=2)  .- logmax)...).*W
+    #     smoothing_weights[i, :] = wei_res/sum(wei_res)
+    # end
+
+    # for i in 1:n_smoothing
+    #     wei_res = zeros(n_filtering)
+    #     for j in 1:n_filtering
+    #         μ = vec(Xp_mean[:, j])
+    #         d = MvNormal(μ, σ)
+    #         wei_res[j] = pdf(d, smoother_state.smoothed_particles_swarm[:, i])
+    #     end
+    #     wei_res = wei_res.*W
+    #     smoothing_weights[i, :] = wei_res/sum(wei_res)
+    # end
+    
+    
 
     ind_smoothing = sample_discrete(smoothing_weights', 1, n_exp=n_smoothing)[:, 1]
+    # ind_smoothing = zeros(Int, n_smoothing)
+    # for i in 1:n_smoothing
+    #     # ind_smoothing[i] = Int(sample_discrete(smoothing_weights[i, :], 1)[1, 1])
+    #     ind_smoothing[i] = Int(rand(Categorical(smoothing_weights[i, :])))
+    # end
 
     # smoother_state.smoothed_particles_swarm .= Xp[:, ind_smoothing]
     smoother_state.smoothed_particles_swarm = Xp[:, ind_smoothing]
@@ -125,7 +149,7 @@ end
 function initialize_smoother!(smoother_output::BackwardSimulationSmootherOutput, smoother_state::BackwardSimulationState, last_predicted_state, last_sampling_weights, n_smoothing, n_filtering)
 
     ind_smoothing = sample_discrete((1/n_filtering).*ones(n_filtering), n_smoothing)[1, :]
-    # ind_smoothing = sample_discrete(last_sampling_weights, n_smoothing)
+    # ind_smoothing = sample_discrete(last_sampling_weights, n_smoothing)[1, :]
 
     # Initialize KalmanSmoother state
     # smoother_state.smoothed_particles_swarm .= last_predicted_state.particles_state[:, ind_smoothing']

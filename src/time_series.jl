@@ -3,6 +3,7 @@ import Base: lastindex
 import Base:length, iterate
 import Plots.plot
 import Plots.plot!
+using LinearAlgebra:diag
 
 export TimeSeries
 export StateStochasticProcess
@@ -38,6 +39,27 @@ mutable struct GaussianStateStochasticProcess <: AbstractState
 
 end
 
+function getindex(state::GaussianStateStochasticProcess, i::Int)
+    new_state = deepcopy(state)
+    new_state.μ_t = new_state.μ_t[i:i]
+    new_state.σ_t = new_state.σ_t[i:i, i:i]
+    return new_state
+end
+
+function getindex(state::GaussianStateStochasticProcess, u::UnitRange{Int64})
+    new_state = deepcopy(state)
+    new_state.μ_t = new_state.μ_t[u]
+    new_state.σ_t = new_state.σ_t[u, u]
+    return new_state
+end
+
+function getindex(state::GaussianStateStochasticProcess, u::Vector{Int64})
+    u = unique(u)
+    new_state = deepcopy(state)
+    new_state.μ_t = new_state.μ_t[u]
+    new_state.σ_t = new_state.σ_t[u, u]
+    return new_state
+end
 
 mutable struct ParticleSwarmState <: AbstractState
     
@@ -65,6 +87,24 @@ mutable struct ParticleSwarmState <: AbstractState
 
 end
 
+function getindex(state::ParticleSwarmState, i::Int)
+    new_state = deepcopy(state)
+    new_state.particles_state = new_state.particles_state[i:i, :]
+    return new_state
+end
+
+function getindex(state::ParticleSwarmState, u::UnitRange{Int64})
+    new_state = deepcopy(state)
+    new_state.particles_state = new_state.particles_state[u, :]
+    return new_state
+end
+
+function getindex(state::ParticleSwarmState, u::Vector{Int64})
+    u = unique(u)
+    new_state = deepcopy(state)
+    new_state.particles_state = new_state.particles_state[u, :]
+    return new_state
+end
 
 struct TimeSeries{T <: AbstractState}
 
@@ -135,25 +175,25 @@ end
 
 
 function plot(t::TimeSeries{GaussianStateStochasticProcess}; label="", kwargs...)
-    mean_process = vcat([t[i].μ_t for i in 1:t.n_t]...)
-    var_process = vcat([t[i].σ_t for i in 1:t.n_t]...)
+    mean_process = vcat([t[i].μ_t' for i in 1:t.n_t]...)
+    var_process = vcat([diag(t[i].σ_t)' for i in 1:t.n_t]...)
     t_index = vcat([t[i].t for i in 1:t.n_t]...)
-    plot(t_index, mean_process - 1.96*sqrt.(var_process), fillrange = mean_process + 1.96*sqrt.(var_process), alpha=0.3, label="CI 95 % $label"; kwargs...)
-    plot!(t_index, mean_process, label="Mean $label"; kwargs...)
+    plot(t_index, mean_process - 1.96*sqrt.(var_process), fillrange = mean_process + 1.96*sqrt.(var_process), alpha=0.3, label=hcat("CI 95 % ".*label...); kwargs...)
+    plot!(t_index, mean_process, label=hcat("Mean ".*label...); kwargs...)
 end
 
 
 function plot!(t::TimeSeries{GaussianStateStochasticProcess}; label="", kwargs...)
-    mean_process = vcat([t[i].μ_t for i in 1:t.n_t]...)
-    var_process = vcat([t[i].σ_t for i in 1:t.n_t]...)
+    mean_process = vcat([t[i].μ_t' for i in 1:t.n_t]...)
+    var_process = vcat([diag(t[i].σ_t)' for i in 1:t.n_t]...)
     t_index = vcat([t[i].t for i in 1:t.n_t]...)
-    plot!(t_index, mean_process - 1.96*sqrt.(var_process), fillrange = mean_process + 1.96*sqrt.(var_process), alpha=0.3, label="CI 95 % $label"; kwargs...)
-    plot!(t_index, mean_process, label="Mean $label"; kwargs...)
+    plot!(t_index, mean_process - 1.96*sqrt.(var_process), fillrange = mean_process + 1.96*sqrt.(var_process), alpha=0.3, label=hcat("CI 95 % ".*label...); kwargs...)
+    plot!(t_index, mean_process, label=hcat("Mean ".*label...); kwargs...)
 end
 
 
 function plot(t::TimeSeries{ParticleSwarmState}; label="", index = 1:t.n_state, kwargs...)
-    mean_process = hcat([mean(t[i].particles_state, dims=2) for i in 1:t.n_t]...)'
+    mean_process = hcat([[quantile(t[i].particles_state[j, :], 0.5) for j in 1:t.n_state] for i in 1:t.n_t]...)'
     q_low = hcat([[quantile(t[i].particles_state[j, :], 0.025) for j in 1:t.n_state] for i in 1:t.n_t]...)'
     q_high = hcat([[quantile(t[i].particles_state[j, :], 0.975) for j in 1:t.n_state] for i in 1:t.n_t]...)'
     t_index = vcat([t[i].t for i in 1:t.n_t]...)
@@ -164,7 +204,7 @@ end
 
 
 function plot!(t::TimeSeries{ParticleSwarmState}; label="", index = 1:t.n_state, kwargs...)
-    mean_process = hcat([mean(t[i].particles_state, dims=2) for i in 1:t.n_t]...)'
+    mean_process = hcat([[quantile(t[i].particles_state[j, :], 0.5) for j in 1:t.n_state] for i in 1:t.n_t]...)'
     q_low = hcat([[quantile(t[i].particles_state[j, :], 0.025) for j in 1:t.n_state] for i in 1:t.n_t]...)'
     q_high = hcat([[quantile(t[i].particles_state[j, :], 0.975) for j in 1:t.n_state] for i in 1:t.n_t]...)'
     t_index = vcat([t[i].t for i in 1:t.n_t]...)
@@ -172,3 +212,41 @@ function plot!(t::TimeSeries{ParticleSwarmState}; label="", index = 1:t.n_state,
     plot!(t_index, q_low[:, index], fillrange = q_high[:, index], alpha=0.3, label = hcat("CI 95 % ".*label...); kwargs...)
     plot!(t_index, mean_process[:, index], label = hcat("Mean ".*label...); kwargs...)
 end
+
+
+function _base_rmse(x_true, x_pred)
+
+    return vec(mean((x_true - x_pred).^2, dims=2))
+
+end
+
+function rmse(x_true, x_pred::TimeSeries{GaussianStateStochasticProcess})
+
+    return _base_rmse(x_true, hcat(map(x-> x.μ_t, x_pred)...) )
+
+end
+
+function rmse(x_true, x_pred::TimeSeries{ParticleSwarmState})
+
+    return _base_rmse(x_true, hcat(map(x-> median(x.particles_state, dims=2), x_pred)...) )
+
+end
+
+function _base_coverage_probability(x_true, x_low_pred, x_high_pred)
+    return vec(mean(x_low_pred .< x_true .< x_high_pred, dims=2))
+end
+
+
+function coverage_probability(x_true, x_pred::TimeSeries{GaussianStateStochasticProcess}; α=0.05)
+    x_mean = hcat(map(x-> x.μ_t, x_pred)...)
+    x_std = hcat(map(x-> sqrt.(diag(x.σ_t)), x_pred)...)
+    q_α = quantile(Normal(0, 1), 1-(α/2))
+    return _base_coverage_probability(x_true, x_mean - q_α.*x_std, x_mean + q_α.*x_std)
+end
+
+function coverage_probability(x_true, x_pred::TimeSeries{ParticleSwarmState}; α=0.05)
+    x_low_pred = hcat(map(x-> mapslices(y-> quantile(y, α/2), x.particles_state, dims=2), x_pred)...)
+    x_high_pred = hcat(map(x-> mapslices(y-> quantile(y, 1-(α/2)), x.particles_state, dims=2), x_pred)...)
+    return _base_coverage_probability(x_true, x_low_pred, x_high_pred)
+end
+

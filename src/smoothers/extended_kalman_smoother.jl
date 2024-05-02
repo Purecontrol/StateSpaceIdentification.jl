@@ -1,7 +1,7 @@
 using LinearAlgebra
 
 
-mutable struct KalmanSmootherState
+mutable struct ExtendedKalmanSmootherState
 
     # Filtered and predicted state
     smoothed_state_μ#::Vector{Float64}
@@ -13,7 +13,7 @@ mutable struct KalmanSmootherState
     N#::Matrix{Float64}
 
 
-    function KalmanSmootherState(n_X, n_Y)
+    function ExtendedKalmanSmootherState(n_X, n_Y)
         
         new(zeros(n_X), zeros(n_X, n_X), zeros(n_X, n_X), zeros(n_X), zeros(n_X, n_X))
 
@@ -22,27 +22,27 @@ mutable struct KalmanSmootherState
 end
 
 
-mutable struct KalmanSmoother <: AbstractSmoother
+mutable struct ExtendedKalmanSmoother <: AbstractSmoother
 
-    smoother_state::KalmanSmootherState
+    smoother_state::ExtendedKalmanSmootherState
 
-    function KalmanSmoother(n_X, n_Y)
+    function ExtendedKalmanSmoother(n_X, n_Y)
 
-        new(KalmanSmootherState(n_X, n_Y))
+        new(ExtendedKalmanSmootherState(n_X, n_Y))
 
     end
 
 
-    function KalmanSmoother(model::ForecastingModel)
+    function ExtendedKalmanSmoother(model::ForecastingModel)
 
-        new(KalmanSmootherState(model.system.n_X, model.system.n_Y))
+        new(ExtendedKalmanSmootherState(model.system.n_X, model.system.n_Y))
 
     end
 
 end
 
 
-mutable struct KalmanSmootherOutput <: SmootherOutput
+mutable struct ExtendedKalmanSmootherOutput <: SmootherOutput
 
     # Predicted and filtered states
     smoothed_state::TimeSeries{GaussianStateStochasticProcess}
@@ -51,7 +51,7 @@ mutable struct KalmanSmootherOutput <: SmootherOutput
     r::Array{Array{Float64, 1}, 1}
     N::Array{Array{Float64, 2}, 1}
 
-    function KalmanSmootherOutput(model::ForecastingModel, y_t)
+    function ExtendedKalmanSmootherOutput(model::ForecastingModel, y_t)
 
         n_obs = size(y_t, 1)
 
@@ -71,14 +71,14 @@ mutable struct KalmanSmootherOutput <: SmootherOutput
 end
 
 
-function get_smoother_output(smoother::KalmanSmoother, model, y_t)
+function get_smoother_output(smoother::ExtendedKalmanSmoother, model, y_t)
 
-    return KalmanSmootherOutput(model, y_t)
+    return ExtendedKalmanSmootherOutput(model, y_t)
 
 end
 
 
-function type_of_state(kf::KalmanSmoother)
+function type_of_state(kf::ExtendedKalmanSmoother)
 
     return GaussianStateStochasticProcess
 
@@ -86,7 +86,7 @@ end
 
 
 # General KF
-function smoother!(smoother_output::KalmanSmootherOutput, filter_output::KalmanFilterOutput, sys::GaussianLinearStateSpaceSystem, smoother::KalmanSmoother, y_t, exogenous_variables, control_variables, parameters)
+function smoother!(smoother_output::ExtendedKalmanSmootherOutput, filter_output::ExtendedKalmanFilterOutput, sys::GaussianNonLinearStateSpaceSystem, smoother::ExtendedKalmanSmoother, y_t, exogenous_variables, control_variables, parameters)
 
     n_obs = size(y_t, 1)
 
@@ -99,60 +99,21 @@ function smoother!(smoother_output::KalmanSmootherOutput, filter_output::KalmanF
         t_step = filter_output.predicted_state[1].t + (t-1)*sys.dt
 
         # Get current matrix H
-        H = sys.H_t(exogenous_variables[t, :], parameters, t_step)
+        H = sys.dH_t(exogenous_variables[t, :], parameters, t_step)
         inv_S = inv(filter_output.S[t])
         v = filter_output.v[t]
         L = filter_output.L[t]
         predicted_state_μ = filter_output.predicted_state[t].μ_t
         predicted_state_σ = filter_output.predicted_state[t].σ_t
         predicted_state_σ_lag_1 = filter_output.predicted_state[t+1].σ_t
-        update_smoother_state!(smoother.smoother_state, y_t[t, :], H, inv_S, v, L, predicted_state_μ, predicted_state_σ, predicted_state_σ_lag_1)
-        
-        # x_f = filter_output.predicted_state[t+1].μ_t
-        # x_a = filter_output.filtered_state[t].μ_t
-        # p_f = filter_output.predicted_state[t+1].σ_t
-        # p_a = filter_output.filtered_state[t].σ_t
-        # M = sys.A_t(exogenous_variables[t, :], parameters, t_step)
-        # update_smoother_state_test!(smoother.smoother_state, x_f, x_a, p_f, p_a, M)
 
+        update_smoother_state!(smoother.smoother_state, y_t[t, :], H, inv_S, v, L, predicted_state_μ, predicted_state_σ, predicted_state_σ_lag_1)
 
         save_state_in_smoother_output!(smoother_output, smoother.smoother_state, t)
 
     end
 
-    # @inbounds for t in 1:(n_obs-1)
-
-    #     # Get current t_step
-    #     t_step = filter_output.predicted_state[1].t + (t-1)*sys.dt
-
-    #     p_a = filter_output.filtered_state[t].σ_t
-    #     p_a_1 = filter_output.filtered_state[t+1].σ_t
-
-    #     M = filter_output.M[t+1]
-    #     A_transition = sys.A_t(exogenous_variables[t+1, :], parameters, t_step)
-    #     H = sys.H_t(exogenous_variables[t+1, :], parameters, t_step)
-    #     inv_S = inv(filter_output.S[t+1])
-    #     K_f = M*inv_S
-        
-    #     A = (I - K_f * H) * A_transition * p_a
-    #     B = (smoother_output.smoothed_state[t+1].σ_t - p_a_1) * inv(p_a_1)
-    #     smoother_output.autocov_state[t] = A + B * A
-
-    # end
-    # H = sys.H_t(exogenous_variables[n_obs, :], parameters, 0)
-    # K_f = filter_output.M[end]*inv(filter_output.S[end])
-    # A_transition = sys.A_t(exogenous_variables[n_obs, :], parameters, 0)
-    # smoother_output.autocov_state[end] = (I - K_f*H)*A_transition*filter_output.filtered_state[end-1].σ_t
-
     return smoother_output
-
-end
-
-function update_smoother_state_test!(kalman_state, x_f, x_a, p_f, p_a, M)
-
-    K = p_a * M' * inv(p_f)
-    kalman_state.smoothed_state_μ = x_a + K*(kalman_state.smoothed_state_μ - x_f)
-    kalman_state.smoothed_state_σ = p_a + K*(kalman_state.smoothed_state_σ - p_f)*K'
 
 end
 
@@ -163,7 +124,7 @@ function update_smoother_state!(kalman_state, y, H, inv_S, v, L, predicted_state
     ivar_obs = findall(.!isnan.(y))
 
     # Update autocovariance
-    kalman_state.autocov_state = (predicted_state_σ*transpose(L)*(I - kalman_state.N*predicted_state_σ_lag_1))'
+    kalman_state.autocov_state = predicted_state_σ*transpose(L)*(I - kalman_state.N*predicted_state_σ_lag_1)
 
     # Backward step
     kalman_state.r = transpose(H[ivar_obs, :])*inv_S*v + transpose(L)*kalman_state.r
@@ -176,7 +137,7 @@ function update_smoother_state!(kalman_state, y, H, inv_S, v, L, predicted_state
 end
 
 
-function save_state_in_smoother_output!(smoother_output::KalmanSmootherOutput, smoother_state::KalmanSmootherState, t::Int64)
+function save_state_in_smoother_output!(smoother_output::ExtendedKalmanSmootherOutput, smoother_state::ExtendedKalmanSmootherState, t::Int64)
 
     # Save smoothed state
     smoother_output.smoothed_state[t].μ_t = smoother_state.smoothed_state_μ
@@ -190,7 +151,7 @@ function save_state_in_smoother_output!(smoother_output::KalmanSmootherOutput, s
 end
 
 
-function initialize_smoother!(smoother_output::KalmanSmootherOutput, smoother_state::KalmanSmootherState, last_predicted_state)
+function initialize_smoother!(smoother_output::ExtendedKalmanSmootherOutput, smoother_state::ExtendedKalmanSmootherState, last_predicted_state)
 
     # Initialize KalmanSmoother state
     smoother_state.smoothed_state_μ = last_predicted_state.μ_t

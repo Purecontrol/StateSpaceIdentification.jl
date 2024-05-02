@@ -20,7 +20,7 @@ mutable struct ConditionalParticleFilterState
 
     function ConditionalParticleFilterState(init_state::GaussianStateStochasticProcess, n_X, n_Y, n_particles, conditional_particle)
         
-        predicted_particles_swarm = init_state.μ_t .+ sqrt.(init_state.σ_t)*rand(Normal(), n_X, n_particles)
+        predicted_particles_swarm = rand(MvNormal(init_state.μ_t, init_state.σ_t), n_particles)
 
         predicted_particles_swarm_mean = reshape(repeat(init_state.μ_t, n_particles), (n_X, n_particles))
 

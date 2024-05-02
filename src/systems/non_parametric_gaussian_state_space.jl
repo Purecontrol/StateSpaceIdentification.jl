@@ -14,17 +14,19 @@ mutable struct LLR
     k
     lag_x
     kernel
+    μ
+    σ
 
 
-    function LLR(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
+    function LLR(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, μ, σ)
 
-        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
+        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, μ, σ)
 
     end
 
-    function LLR(index_analogs, analogs, successors, tree, ignored_nodes; k=10, lag_x=5, kernel="rectangular")
+    function LLR(index_analogs, analogs, successors, tree, ignored_nodes; k=10, lag_x=5, kernel="rectangular", μ=0, σ=1)
 
-        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
+        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, μ, σ)
 
     end
 
@@ -147,14 +149,14 @@ function forecast(system::GaussianNonParametricStateSpaceSystem, current_state::
 end
 
 
-function default_filter(model::ForecastingModel{GaussianNonParametricStateSpaceSystem})
+function default_filter(model::ForecastingModel{GaussianNonParametricStateSpaceSystem}; kwargs...)
 
-    return ParticleFilter(model.current_state, model.system.n_X, model.system.n_Y, 50)
+    return ParticleFilter(model.current_state, model.system.n_X, model.system.n_Y; kwargs...)
 
 end
 
 
-function k_choice(ssm::GaussianNonParametricStateSpaceSystem, x_t, y_t, exogenous_variables, control_variables; k_list = [5, 10, 15, 20, 25])
+function k_choice(ssm::GaussianNonParametricStateSpaceSystem, x_t, y_t, exogenous_variables, control_variables, time_variables; k_list = [5, 10, 15, 20, 25])
 
     n_t = size(x_t, 1)
 
@@ -170,17 +172,13 @@ function k_choice(ssm::GaussianNonParametricStateSpaceSystem, x_t, y_t, exogenou
         err = 0
         for idx in 1:(n_t)
 
-            t_step = 0
-
-            mean_xf = ssm.M_t(x_t[idx, :], exogenous_variables[idx, :], control_variables[idx, :], llr_exp, t_step)
+            mean_xf = ssm.M_t(x_t[idx, :], exogenous_variables[idx, :], control_variables[idx, :], llr_exp, time_variables[idx])
             innov = y_t[idx, :] .- mean_xf
             err += mean((innov)^2)
         end
         E[index_k] = sqrt(err)/n_t
 
     end
-
-    println(E)
 
     ind_min = argmin(E)
 

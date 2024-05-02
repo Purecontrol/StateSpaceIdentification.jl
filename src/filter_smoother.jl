@@ -20,7 +20,11 @@ function filter(model::ForecastingModel, y_t, exogenous_variables, control_varia
 end
 
 
-function update(model::ForecastingModel, y_t, exogenous_variables, control_variables; filter_method::AbstractFilter=default_filter(model), parameters=model.parameters)
+function update(model::ForecastingModel, y_t, exogenous_variables, control_variables; filter_method=nothing, parameters=model.parameters, kwargs...)
+
+    if isnothing(filter_method)
+        filter_method = default_filter(model; kwargs...)
+    end
 
     filter_output = filter(model, y_t, exogenous_variables, control_variables; filter=filter_method, parameters=parameters)
 
@@ -32,7 +36,11 @@ function update(model::ForecastingModel, y_t, exogenous_variables, control_varia
 end
 
 
-function update!(model::ForecastingModel, y_t, exogenous_variables, control_variables; filter_method::AbstractFilter=default_filter(model), parameters=model.parameters)
+function update!(model::ForecastingModel, y_t, exogenous_variables, control_variables; filter_method=nothing, parameters=model.parameters, kwargs...)
+
+    if isnothing(filter_method)
+        filter_method = default_filter(model; kwargs...)
+    end
 
     filter_output = filter(model, y_t, exogenous_variables, control_variables; filter=filter_method, parameters=parameters)
 

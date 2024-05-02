@@ -100,14 +100,14 @@ function forecast(system::GaussianLinearStateSpaceSystem, current_state::Abstrac
 end
 
 
-function default_filter(model::ForecastingModel{GaussianLinearStateSpaceSystem})
+function default_filter(model::ForecastingModel{GaussianLinearStateSpaceSystem}; kwargs...)
 
     return KalmanFilter(model)
 
 end
 
 
-function default_smoother(model::ForecastingModel{GaussianLinearStateSpaceSystem})
+function default_smoother(model::ForecastingModel{GaussianLinearStateSpaceSystem}; kwargs...)
 
     return KalmanSmoother(model.system.n_X, model.system.n_Y)
 

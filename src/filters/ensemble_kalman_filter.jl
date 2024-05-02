@@ -16,7 +16,7 @@ mutable struct EnsembleKalmanFilterState
 
     function EnsembleKalmanFilterState(init_state::GaussianStateStochasticProcess, n_X, n_Y, n_particles)
         
-        predicted_particles_swarm = init_state.μ_t .+ sqrt.(init_state.σ_t)*rand(Normal(), n_X, n_particles)
+        predicted_particles_swarm = rand(MvNormal(init_state.μ_t, init_state.σ_t), n_particles)
 
         new(predicted_particles_swarm, zeros(Float64, n_X, n_particles), zeros(Float64, n_Y, n_particles), 0.0)
 
@@ -31,7 +31,7 @@ mutable struct EnsembleKalmanFilterState
             μ_t = vcat(mean(init_state.particles_state, dims=2)...)
             σ_t = var(init_state.particles_state, dims=2)
 
-            predicted_particles_swarm = init_state.μ_t .+ sqrt.(init_state.σ_t)*rand(Normal(), n_X, n_particles)
+            predicted_particles_swarm = rand(MvNormal(μ_t, σ_t), n_particles)
 
         else   
             predicted_particles_swarm = init_state.particles_state

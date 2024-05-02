@@ -21,7 +21,7 @@ mutable struct ParticleFilterState
 
     function ParticleFilterState(init_state::GaussianStateStochasticProcess, n_X, n_Y, n_particles)
         
-        predicted_particles_swarm = init_state.μ_t .+ sqrt.(init_state.σ_t)*rand(Normal(), n_X, n_particles)
+        predicted_particles_swarm = rand(MvNormal(init_state.μ_t, init_state.σ_t), n_particles)
 
         predicted_particles_swarm_mean = reshape(repeat(init_state.μ_t, n_particles), (n_X, n_particles))
 
@@ -204,15 +204,19 @@ function update_filter_state!(filter_state::ParticleFilterState, y, M, H, R, Q, 
         # Compute likelihood
         ṽ = y[ivar_obs] - vcat(mean(filter_state.observed_particles_swarm, dims=2)...)
         S = cov(filter_state.observed_particles_swarm, dims=2) + Q[ivar_obs, ivar_obs]
-        filter_state.llk += - log(2*pi)/2 - (1/2) * (log(det(S)) + ṽ' * inv(S) * ṽ)
+        filter_state.llk += - log(2*pi)/2 - (1/2) * (logdet(S) + ṽ' * inv(S) * ṽ)
 
         #### Correction STEP ####
-        σ = Matrix(Q[ivar_obs, ivar_obs])
-        for ip = 1:n_particles
-            μ = vec(filter_state.observed_particles_swarm[:, ip])
-            d = MvNormal(μ, σ)
-            filter_state.sampling_weight[ip] = pdf(d, y[ivar_obs])
-        end
+        inv_σ = inv(Q[ivar_obs, ivar_obs])
+        innov = (repeat(y[ivar_obs, :], 1, n_particles) -  filter_state.observed_particles_swarm)
+        logmax = max((-0.5 * sum(innov' * inv_σ .* innov', dims=2))...)
+        filter_state.sampling_weight = vcat(exp.(-0.5 * sum(innov' * inv_σ .* innov', dims=2) .- logmax)...)
+        # σ = Matrix(Q[ivar_obs, ivar_obs])
+        # @inbounds for ip = 1:n_particles
+        #     μ = vec(filter_state.observed_particles_swarm[:, ip])
+        #     d = MvNormal(μ, σ)
+        #     filter_state.sampling_weight[ip] = pdf(d, y[ivar_obs])
+        # end
 
         # Normalization of the weights
         filter_state.sampling_weight ./= sum(filter_state.sampling_weight) 
@@ -226,7 +230,8 @@ function update_filter_state!(filter_state::ParticleFilterState, y, M, H, R, Q, 
     #### Resampling STEP ####
 
     # Resampling indices according to the weights
-    resample!(filter_state.ancestor_indice, filter_state.sampling_weight)
+    filter_state.ancestor_indice = rand(Categorical(filter_state.sampling_weight), n_particles)
+    # resample!(filter_state.ancestor_indice, filter_state.sampling_weight)
 
     # Filtered particle swarm
     filter_state.filtered_particles_swarm = filter_state.predicted_particles_swarm[:, filter_state.ancestor_indice]

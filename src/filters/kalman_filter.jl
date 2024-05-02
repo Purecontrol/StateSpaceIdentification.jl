@@ -200,7 +200,7 @@ function update_filter_state!(kalman_state::KalmanFilterState, y, u, A, B, c, H,
     
     # Forecast step
     kalman_state.predicted_state_μ = A*kalman_state.filtered_state_μ + B*u + c
-    kalman_state.predicted_state_σ = transpose(A)*kalman_state.filtered_state_σ*A + R
+    kalman_state.predicted_state_σ = A*kalman_state.filtered_state_σ*transpose(A) + R
 
     # Compute stuff for Kalman smoother
     kalman_state.K = A*kalman_state.M*inv_S
@@ -208,7 +208,7 @@ function update_filter_state!(kalman_state::KalmanFilterState, y, u, A, B, c, H,
 
     # Update likelihood
     if length(ivar_obs) > 0
-        kalman_state.llk +=  - log(2*pi)/2 - (1/2) * (log(det(kalman_state.S)) + kalman_state.v' * inv_S * kalman_state.v)
+        kalman_state.llk +=  - log(2*pi)/2 - (1/2) * (logdet(kalman_state.S) + kalman_state.v' * inv_S * kalman_state.v)
     end
 
 end
