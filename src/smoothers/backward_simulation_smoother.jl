@@ -4,7 +4,7 @@ using LinearAlgebra
 mutable struct BackwardSimulationState
 
     # Filtered and predicted state
-    smoothed_particles_swarm
+    smoothed_particles_swarm::Array{Float64}
 
     function BackwardSimulationState(n_X, n_Y, n_particles)
         

@@ -14,19 +14,16 @@ mutable struct LLR
     k
     lag_x
     kernel
-    μ
-    σ
 
+    function LLR(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
 
-    function LLR(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, μ, σ)
-
-        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, μ, σ)
+        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
 
     end
 
-    function LLR(index_analogs, analogs, successors, tree, ignored_nodes; k=10, lag_x=5, kernel="rectangular", μ=0, σ=1)
+    function LLR(index_analogs, analogs, successors, tree, ignored_nodes; k=10, lag_x=5, kernel="rectangular")
 
-        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, μ, σ)
+        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
 
     end
 
@@ -65,6 +62,8 @@ function (llr::LLR)(x, t)
             end
         end
     end
+    # println(llr.ignored_nodes)
+    # @error "help me !!!"
 
     if length(llr.ignored_nodes) >= nb_point_tree - 2
         error("Lag_x is too high. Decreases it.")
@@ -119,10 +118,12 @@ mutable struct GaussianNonParametricStateSpaceSystem <: StateSpaceSystem
 
     # LLR
     llrs::Array{LLR}
+    μ
+    σ
 
-    function GaussianNonParametricStateSpaceSystem(M_t, H_t, R_t, Q_t, n_X, n_Y, dt, llrs)
+    function GaussianNonParametricStateSpaceSystem(M_t, H_t, R_t, Q_t, n_X, n_Y, dt, llrs; μ=0.0, σ=1.0)
 
-        return new(M_t, H_t, R_t, Q_t, n_X, n_Y, dt, llrs)
+        return new(M_t, H_t, R_t, Q_t, n_X, n_Y, dt, llrs, μ, σ)
     end
 
 end
@@ -130,7 +131,7 @@ end
 
 function transition(ssm::GaussianNonParametricStateSpaceSystem, current_x, exogenous_variables, control_variables, parameters, t) 
 
-    return ssm.M_t(current_x, exogenous_variables, control_variables, ssm.llrs, t)
+    return ssm.M_t(current_x, scale(current_x, ssm.μ, ssm.σ), exogenous_variables, control_variables, ssm.llrs, t)
 
 end
 
@@ -148,10 +149,9 @@ function forecast(system::GaussianNonParametricStateSpaceSystem, current_state::
 
 end
 
-
 function default_filter(model::ForecastingModel{GaussianNonParametricStateSpaceSystem}; kwargs...)
 
-    return ParticleFilter(model.current_state, model.system.n_X, model.system.n_Y; kwargs...)
+    return ParticleFilter(model; kwargs...)
 
 end
 
@@ -164,15 +164,14 @@ function k_choice(ssm::GaussianNonParametricStateSpaceSystem, x_t, y_t, exogenou
     E = zeros(length(k_list))
     for (index_k, k) in enumerate(k_list)
 
-        llr_exp = deepcopy(ssm.llrs)
-        for i in size(llr_exp, 1)
-            llr_exp[i].k = k
+        for i in size(ssm.llrs, 1)
+            ssm.llrs[i].k = k
         end
 
         err = 0
         for idx in 1:(n_t)
 
-            mean_xf = ssm.M_t(x_t[idx, :], exogenous_variables[idx, :], control_variables[idx, :], llr_exp, time_variables[idx])
+            mean_xf = transition(ssm, x_t[idx, :], exogenous_variables[idx, :], control_variables[idx, :], [], time_variables[idx])
             innov = y_t[idx, :] .- mean_xf
             err += mean((innov)^2)
         end

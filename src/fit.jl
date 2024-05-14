@@ -716,7 +716,7 @@ function SEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_vari
 end
 
 
-function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_variables, update_M; optim_method=Optim.Newton(), diff_method=Optimization.AutoForwardDiff(), maxiters=100, abstol=1e-8, reltol=1e-8, p_filter = Dict(:n_particles => 30), p_smoothing = Dict(:n_particles => 30), p_opt_problem = Dict(), p_optim_method = Dict())
+function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_variables, update_M; optim_method=Optim.Newton(), diff_method=Optimization.AutoForwardDiff(), maxiters=100, abstol=1e-8, reltol=1e-8, p_filter = Dict(:n_particles => 30), p_smoothing = Dict(:n_particles => 30), p_opt_problem = Dict(), p_optim_method = Dict(), conditional_particle=nothing)
 
     # Choice of filter and smoother
     n_smoothing = p_smoothing[:n_particles]
@@ -767,16 +767,33 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
     # M function
     optprob = OptimizationFunction(Q, diff_method)
 
+    rs = RollingStd(10)
     llk_array = []
+    std_array = []
+    parameters_array = []
     parameters = model.parameters
     time_filtering = 0.0
     time_smoothing = 0.0
     time_M = 0.0
-    conditional_particle = nothing
+    alpha = 0.1
+    termination_flag = false
+    iter_saem = 10
+    maxiters_saem = maxiters
     @inbounds for i in 1:maxiters
 
-        if i > 2 && (abs(llk_array[end-1] - llk_array[end])  <  abstol || abs((llk_array[end-1] - llk_array[end])/(llk_array[end-1]))  <  reltol)
+        if i > 2 && !termination_flag && (abs(std_array[end-1] - std_array[end])  <  abstol || abs((std_array[end-1] - std_array[end])/(std_array[end-1]))  <  reltol)
+            @info "Algorithm has converged. Continued for $iter_saem iterations to stabilize solution."
+            termination_flag = true
+            maxiters_saem = i + iter_saem
+            parameters = mean(parameters_array[(end-5):end])
+        end
+
+        if i > maxiters_saem
             break
+        end
+
+        if i >= maxiters - iter_saem
+            termination_flag = true
         end
 
         t1 = time()
@@ -784,7 +801,9 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         t2 = time()
         time_filtering += t2-t1
 
+        update!(rs, filter_output.llk / n_obs)
         push!(llk_array, filter_output.llk / n_obs)
+        push!(std_array, get_value(rs))
         println("Iter n° $(i-1) | Log Likelihood : ", llk_array[end])
 
         t1 = time()
@@ -798,12 +817,17 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         t1 = time()
         prob = Optimization.OptimizationProblem(optprob, parameters, smoother_output.smoothed_state; p_opt_problem...)
         sol = solve(prob, optim_method; p_optim_method...)
-        parameters = sol.minimizer
+        push!(parameters_array, sol.minimizer)
+        if termination_flag == false
+            parameters = sol.minimizer
+        else
+            parameters = alpha*sol.minimizer + (1-alpha)*parameters
+        end
         t2 = time()
         time_M += t2-t1
 
         # Update non parametric estimate of m
-        ns = n_smoothing-1
+        ns = 5 #n_smoothing-1
         # if ns == 1
         #     idx_selected_particules = sample(collect(1:(n_smoothing-1)))
         #     new_x = hcat(map((x) -> x.particles_state[:, idx_selected_particules], smoother_output.smoothed_state)...)'
@@ -825,12 +849,15 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         idx = repeat(Int.(1:(n_obs - 1)), ns)
         t_idx = repeat([model.current_state.t + (t-1)*model.system.dt for t in 1:(n_obs-1)], ns)
 
-        update_M(idx, t_idx, new_x, exogenous_variables, control_variables, model.system.llrs)
-
-        k_list = collect(1:10:1000)
-        opt_k, E = k_choice(model.system, new_x[1:(end-1), 1:1], new_x[2:(end), 1:1], exogenous_variables, control_variables, t_idx; k_list = k_list)
-        for llr in model.system.llrs
-            llr.k = opt_k
+        # model.system.μ = mean(reshape(new_x[1:end, :], (:)), dims=1)
+        # model.system.σ = std(reshape(new_x[1:end, :], (:)), dims=1)
+        update_M(idx, t_idx, new_x, exogenous_variables, control_variables, model.system.llrs, model.system.μ, model.system.σ)
+        if i%3==1
+            k_list = collect(5:5:min(maximum(map(x->size(x.analogs, 2), model.system.llrs)), 1500))
+            opt_k, _ = k_choice(model.system, new_x[1:(end-1), 1:1], new_x[2:(end), 1:1], exogenous_variables, control_variables, t_idx; k_list = k_list)
+            for llr in model.system.llrs
+                llr.k = opt_k
+            end
         end
 
     end
@@ -840,6 +867,6 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
     push!(llk_array, filter_output.llk / n_obs)
     println("Final | Log Likelihood : ", llk_array[end])
 
-    return parameters, (llk = llk_array, time_filtering=time_filtering/maxiters, time_smoothing=time_smoothing/maxiters, time_M=time_M/maxiters)
+    return parameters, (parameters = parameters_array, llk = llk_array, std = std_array)
 
 end

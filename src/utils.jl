@@ -77,3 +77,12 @@ end
 @inline get_mat(A::Union{AbstractMatrix, Number}, x, u, p, t) = A
 
 # @inline get_M(sys::GaussianLinearStateSpaceSystem, x, exogenous_variables[t, :], control_variables[t, :], parameters)
+@inline scale(x, μ=0.0, σ=1.0) = (x .- μ)./σ
+function standard_scaler(X::Array{Float64, 2}; with_mean=true, with_std=true)
+
+    n_X = size(X, 2)
+    μ = with_mean ? mean(X, dims=1) : zeros(1, n_X)
+    σ = with_std ? std(X, dims=1) : ones(1, n_X)
+    return scale(X, μ, σ)
+
+end
