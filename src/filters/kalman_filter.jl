@@ -110,7 +110,7 @@ end
 
 
 function get_last_state(filter_output::KalmanFilterOutput)
-    return filter_output.filtered_state[end]
+    return filter_output.predicted_state[end]
 end
 
 

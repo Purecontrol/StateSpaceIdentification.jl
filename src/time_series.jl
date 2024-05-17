@@ -220,11 +220,13 @@ function _base_rmse(x_true, x_pred)
 
 end
 
+
 function rmse(x_true, x_pred::TimeSeries{GaussianStateStochasticProcess})
 
     return _base_rmse(x_true, hcat(map(x-> x.μ_t, x_pred)...) )
 
 end
+
 
 function rmse(x_true, x_pred::TimeSeries{ParticleSwarmState})
 
@@ -232,21 +234,29 @@ function rmse(x_true, x_pred::TimeSeries{ParticleSwarmState})
 
 end
 
-function _base_coverage_probability(x_true, x_low_pred, x_high_pred)
+
+function _get_confidence_interval(x_pred::TimeSeries{GaussianStateStochasticProcess}; α=0.05)
+    x_mean = hcat(map(x-> x.μ_t, x_pred)...)
+    x_std = hcat(map(x-> sqrt.(diag(x.σ_t)), x_pred)...)
+    q_α = quantile(Normal(0, 1), 1-(α/2))
+    return x_mean - q_α.*x_std, x_mean + q_α.*x_std
+end
+
+
+function _get_confidence_interval(x_pred::TimeSeries{ParticleSwarmState}; α=0.05)
+    x_low_pred = hcat(map(x-> mapslices(y-> quantile(y, α/2), x.particles_state, dims=2), x_pred)...)
+    x_high_pred = hcat(map(x-> mapslices(y-> quantile(y, 1-(α/2)), x.particles_state, dims=2), x_pred)...)
+    return x_low_pred, x_high_pred
+end
+
+
+function coverage_probability(x_true, x_pred::Union{TimeSeries{GaussianStateStochasticProcess}, TimeSeries{ParticleSwarmState}}; α=0.05)
+    x_low_pred, x_high_pred = _get_confidence_interval(x_pred; α=α)
     return vec(mean(x_low_pred .< x_true .< x_high_pred, dims=2))
 end
 
 
-function coverage_probability(x_true, x_pred::TimeSeries{GaussianStateStochasticProcess}; α=0.05)
-    x_mean = hcat(map(x-> x.μ_t, x_pred)...)
-    x_std = hcat(map(x-> sqrt.(diag(x.σ_t)), x_pred)...)
-    q_α = quantile(Normal(0, 1), 1-(α/2))
-    return _base_coverage_probability(x_true, x_mean - q_α.*x_std, x_mean + q_α.*x_std)
+function average_width(x_pred::Union{TimeSeries{GaussianStateStochasticProcess}, TimeSeries{ParticleSwarmState}}; α=0.05)
+    x_low_pred, x_high_pred = _get_confidence_interval(x_pred; α=α)
+    return vec(mean(x_high_pred - x_low_pred, dims=2))
 end
-
-function coverage_probability(x_true, x_pred::TimeSeries{ParticleSwarmState}; α=0.05)
-    x_low_pred = hcat(map(x-> mapslices(y-> quantile(y, α/2), x.particles_state, dims=2), x_pred)...)
-    x_high_pred = hcat(map(x-> mapslices(y-> quantile(y, 1-(α/2)), x.particles_state, dims=2), x_pred)...)
-    return _base_coverage_probability(x_true, x_low_pred, x_high_pred)
-end
-
