@@ -843,7 +843,7 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         # end
         
         idxes_selected_particules = sample(collect(1:(n_smoothing-1)), ns)
-        new_x = hcat([hcat(map((x) -> x.particles_state[:, i], smoother_output.smoothed_state)...)'[1:(end-1)] for i in idxes_selected_particules]...)
+        new_x = permutedims(cat([cat(map((x) -> x.particles_state[:, i], smoother_output.smoothed_state)..., dims=2)'[1:(end-1), :] for i in idxes_selected_particules]..., dims=3), (1, 3, 2))
         # new_x2 = hcat(map((x) -> x.particles_state[:, 2], smoother_output.smoothed_state)...)'
         # new_x = hcat([new_x1[1:(end-1)], new_x2[1:(end-1)]]...)
         idx = repeat(Int.(1:(n_obs - 1)), ns)
@@ -853,8 +853,9 @@ function npSEM_CPF(model::ForecastingModel, y_t, exogenous_variables, control_va
         # model.system.σ = std(reshape(new_x[1:end, :], (:)), dims=1)
         update_M(idx, t_idx, new_x, exogenous_variables, control_variables, model.system.llrs, model.system.μ, model.system.σ)
         if i%3==1
-            k_list = collect(5:5:min(maximum(map(x->size(x.analogs, 2), model.system.llrs)), 1500))
-            opt_k, _ = k_choice(model.system, new_x[1:(end-1), 1:1], new_x[2:(end), 1:1], exogenous_variables, control_variables, t_idx; k_list = k_list)
+            k_list = collect(5:5:450)
+            # k_list = collect(5:5:min(maximum(map(x->size(x.analogs, 2), model.system.llrs)), 1500))
+            opt_k, _ = k_choice(model.system, new_x[1:(end-1), 1, :], new_x[2:(end), 1, :], exogenous_variables, control_variables, t_idx; k_list = k_list)
             for llr in model.system.llrs
                 llr.k = opt_k
             end

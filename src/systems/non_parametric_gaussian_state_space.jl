@@ -89,12 +89,14 @@ function (llr::LLR)(x, t)
 
     A = vcat([ones(1, k, n_particules), analogs[:, knn_x_new]]...) .* permutedims(cat(weights, dims=3), (3, 2, 1))
     B = succesors[knn_x_new, :] .* cat(weights', dims=3)
-
-    M = hcat(map((x, y) -> x' \ y, eachslice(A, dims=3), eachslice(B, dims=2))...)
+    M = cat(map((x, y) -> x' \ y, eachslice(A, dims=3), eachslice(B, dims=2))..., dims=3)
 
     x_new = vcat([ones(1, n_particules), x]...)
 
-    mean_xf = sum(M .* x_new, dims = 1)
+    mean_xf = zeros(Float64, size(M, 2), n_particules)
+    for i in 1:n_particules
+        mean_xf[:, i] = x_new[:, i]' * M[:, :, i]
+    end
     
     return mean_xf
 
@@ -173,7 +175,7 @@ function k_choice(ssm::GaussianNonParametricStateSpaceSystem, x_t, y_t, exogenou
 
             mean_xf = transition(ssm, x_t[idx, :], exogenous_variables[idx, :], control_variables[idx, :], [], time_variables[idx])
             innov = y_t[idx, :] .- mean_xf
-            err += mean((innov)^2)
+            err += mean((innov).^2)
         end
         E[index_k] = sqrt(err)/n_t
 
