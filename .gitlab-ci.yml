@@ -1,0 +1,41 @@
+image: julia:latest
+
+variables:
+  CACHE_DIR: "$CI_PROJECT_DIR/julia_pkg"
+
+cache: &juliacache
+  key: "julia-cache"
+  paths:
+    - "$CACHE_DIR"
+
+before_script:
+    - export JULIA_DEPOT_PATH="$CACHE_DIR"
+    - export JULIA_PROJECT="."
+
+build:
+  cache: *juliacache
+  stage: build
+  script:
+    - julia -e 'using Pkg; Pkg.build()'
+
+test:
+  cache: *juliacache
+  stage: test
+  rules:
+     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - julia --project=@. -e "import Pkg; Pkg.test()"
+
+pages:
+  cache: *juliacache
+  stage: deploy
+  script:
+    - apt-get update -qq && apt-get install -y git  
+    - julia --project=docs -e 'using Pkg; Pkg.instantiate(); Pkg.develop(PackageSpec(path=pwd()))'
+    - julia --project=docs --color=yes docs/make.jl  
+    - mv docs/build public  
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
