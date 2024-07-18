@@ -1,6 +1,5 @@
-using Optimization, OptimizationOptimJL, OptimizationOptimisers
+using Optimization, OptimizationOptimJL
 using SparseArrays
-using FiniteDiff
 using NaNMath; nm=NaNMath
 
 
