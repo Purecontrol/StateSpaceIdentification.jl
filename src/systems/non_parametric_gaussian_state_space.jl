@@ -54,10 +54,13 @@ function (llr::LLR)(x, t)
     # else
     #     llr.ignored_nodes = Set([])
     # end
+    lag_time = 60*2/1440
     llr.ignored_nodes = Set([])
     if t != 0 && lag_x != 0
         for i in 1:nb_point_tree
             if (t-lag_x <= llr.index_analogs[i] <= t+lag_x)
+                push!(llr.ignored_nodes, i)
+            elseif (t%1 <= llr.index_analogs[i]%1 - lag_time) & (t%1 >= (llr.index_analogs[i] + lag_time)%1) | ( (t%1 >= llr.index_analogs[i]%1 + lag_time) & (t%1 <= (1 + llr.index_analogs[i]%1 - lag_time)) )
                 push!(llr.ignored_nodes, i)
             end
         end
@@ -170,14 +173,18 @@ function k_choice(ssm::GaussianNonParametricStateSpaceSystem, x_t, y_t, exogenou
             ssm.llrs[i].k = k
         end
 
-        err = 0
-        for idx in 1:(n_t)
-
-            mean_xf = transition(ssm, x_t[idx, :], exogenous_variables[idx, :], control_variables[idx, :], [], time_variables[idx])
-            innov = y_t[idx, :] .- mean_xf
-            err += mean((innov).^2)
+        try
+            err = 0
+            for idx in 1:(n_t)
+    
+                mean_xf = transition(ssm, x_t[idx, :], exogenous_variables[idx, :], control_variables[idx, :], [], time_variables[idx])
+                innov = y_t[idx, :] .- mean_xf
+                err += mean((innov).^2)
+                E[index_k] = sqrt(err)/n_t
+            end
+        catch
+            E[index_k] = 10^10
         end
-        E[index_k] = sqrt(err)/n_t
 
     end
 
