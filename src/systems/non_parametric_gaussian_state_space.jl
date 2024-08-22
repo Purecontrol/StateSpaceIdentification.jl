@@ -14,16 +14,23 @@ mutable struct LLR
     k
     lag_x
     kernel
+    lag_time
 
-    function LLR(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
+    function LLR(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, lag_time)
 
-        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
+        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, lag_time)
 
     end
 
-    function LLR(index_analogs, analogs, successors, tree, ignored_nodes; k=10, lag_x=5, kernel="rectangular")
+    function LLR(index_analogs, analogs, successors, tree, ignored_nodes; k=10, lag_x=5, kernel="rectangular", lag_time=0)
 
-        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
+        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, lag_time)
+
+    end
+
+    function LLR(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel)
+
+        new(index_analogs, analogs, successors, tree, ignored_nodes, k, lag_x, kernel, 0)
 
     end
 
@@ -44,6 +51,7 @@ function (llr::LLR)(x, t)
     analogs = llr.analogs
     succesors = llr.successors
     tree = llr.tree
+    lag_time = llr.lag_time
 
     n_particules = size(x, 2)
     nb_point_tree = size(tree.data)[1]
@@ -54,13 +62,12 @@ function (llr::LLR)(x, t)
     # else
     #     llr.ignored_nodes = Set([])
     # end
-    lag_time = 60*2/1440
     llr.ignored_nodes = Set([])
     if t != 0 && lag_x != 0
         for i in 1:nb_point_tree
             if (t-lag_x <= llr.index_analogs[i] <= t+lag_x)
                 push!(llr.ignored_nodes, i)
-            elseif (t%1 <= llr.index_analogs[i]%1 - lag_time) & (t%1 >= (llr.index_analogs[i] + lag_time)%1) | ( (t%1 >= llr.index_analogs[i]%1 + lag_time) & (t%1 <= (1 + llr.index_analogs[i]%1 - lag_time)) )
+            elseif (lag_time != 0) && (((t%1 <= llr.index_analogs[i]%1 - lag_time) && (t%1 >= (llr.index_analogs[i] + lag_time)%1)) || ((t%1 >= llr.index_analogs[i]%1 + lag_time) && (t%1 <= (1 + llr.index_analogs[i]%1 - lag_time))))
                 push!(llr.ignored_nodes, i)
             end
         end
