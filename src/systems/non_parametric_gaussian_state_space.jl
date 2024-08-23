@@ -62,18 +62,48 @@ function (llr::LLR)(x, t)
     # else
     #     llr.ignored_nodes = Set([])
     # end
-    llr.ignored_nodes = Set([])
+    # llr.ignored_nodes = Set([])
+    # if t != 0 && lag_x != 0
+    #     for i in 1:nb_point_tree
+    #         if (t-lag_x <= llr.index_analogs[i] <= t+lag_x)
+    #             push!(llr.ignored_nodes, i)
+    #         elseif (lag_time != 0) && (((t%1 <= llr.index_analogs[i]%1 - lag_time) && (t%1 >= (llr.index_analogs[i] + lag_time)%1)) || ((t%1 >= llr.index_analogs[i]%1 + lag_time) && (t%1 <= (1 + llr.index_analogs[i]%1 - lag_time))))
+    #             push!(llr.ignored_nodes, i)
+    #         end
+    #     end
+    # end
+    # llr.ignored_nodes = Set{Int64}()
+    # if t != 0 && lag_x != 0
+    #     indexes = llr.index_analogs
+    #     ignored_nodes = llr.ignored_nodes
+    #     for i in eachindex(indexes)
+    #         index = indexes[i]
+    #         if (t-lag_x <= index <= t+lag_x) || ((lag_time != 0) && ((index%1 <= t%1 - lag_time && index%1 >= max(t +lag_time, 1)%1) || (index%1 >= t%1 + lag_time && index%1 <= 1 + t - lag_time)))
+    #             push!(ignored_nodes, i)
+    #         end
+    #     end
+    # end
+    llr.ignored_nodes = Set{Int64}()
     if t != 0 && lag_x != 0
-        for i in 1:nb_point_tree
-            if (t-lag_x <= llr.index_analogs[i] <= t+lag_x)
-                push!(llr.ignored_nodes, i)
-            elseif (lag_time != 0) && (((t%1 <= llr.index_analogs[i]%1 - lag_time) && (t%1 >= (llr.index_analogs[i] + lag_time)%1)) || ((t%1 >= llr.index_analogs[i]%1 + lag_time) && (t%1 <= (1 + llr.index_analogs[i]%1 - lag_time))))
-                push!(llr.ignored_nodes, i)
-            end
-        end
+        indexes = llr.index_analogs
+        n = length(indexes)
+        ignored_nodes = BitVector(undef, n)  # Pré-allocations d'un vecteur booléen
+        t_mod = t % 1
+    
+        # Condition 1: Vérifier les index dans l'intervalle [t-lag_x, t+lag_x]
+        in_range = (t - lag_x .<= indexes) .& (indexes .<= t + lag_x)
+    
+        # Condition 2: Vérifier les index modulo dans l'intervalle des temps
+        mod_indexes = indexes .% 1
+        out_of_mod_range = ((mod_indexes .<= t_mod - lag_time) .& (mod_indexes .>= max(t +lag_time, 1) % 1)) .| 
+                            ((mod_indexes .>= t_mod + lag_time) .& (mod_indexes .<= 1 + t - lag_time))
+    
+        # Combiner les conditions
+        ignored_nodes .= in_range .| (lag_time != 0 && out_of_mod_range)
+    
+        # Collecter les indices ignorés
+        llr.ignored_nodes = Set(findall(ignored_nodes))
     end
-    # println(llr.ignored_nodes)
-    # @error "help me !!!"
 
     if length(llr.ignored_nodes) >= nb_point_tree - 2
         error("Lag_x is too high. Decreases it.")
