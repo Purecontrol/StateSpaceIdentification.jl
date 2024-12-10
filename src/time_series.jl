@@ -1,191 +1,322 @@
-import Base: getindex
-import Base: lastindex
-import Base: length, iterate
-using RecipesBase
-using LinearAlgebra: diag
+import Base: getindex, iterate, lastindex, length, size, convert, eltype
+
 using Distributions
+using LinearAlgebra: diag
+using RecipesBase
+using Statistics
+using DocStringExtensions
 
 export TimeSeries
-export StateStochasticProcess
 
-using Statistics
+DEFAULT_REAL_TYPE = Float64
 
-abstract type AbstractState end
+"""
+The `AbstractState` type serves as the parent type for all state implementations within this package.
 
+$(TYPEDEF)
 
-mutable struct GaussianStateStochasticProcess <: AbstractState
+A state is characterized by two key elements:
+  - A time representing its temporal context.
+  - A description of the state, whose specifics depend on the particular state type.
+"""
+abstract type AbstractState{T <: Real} end
 
-    t::Float64
-    μ_t::Vector{Float64}
-    σ_t::Matrix{Float64}
+######################################################################################
+# GaussianStateStochasticProcess
+######################################################################################
 
-    function GaussianStateStochasticProcess(t::Real, μ_t::Vector{Float64}, σ_t::Matrix{Float64})
+"""
+A subtype of `AbstractState` defined for Multivariate Gaussian Distribution representation of the state.
+In other words, the state is defined by its mean ``μ_t`` and its covariance matrix ``Σ_t``.
 
-        return new(t, μ_t, σ_t)
+$(TYPEDEF)
 
+$(TYPEDFIELDS)
+
+# Examples
+```jldoctest
+julia> t = 0.0;
+julia> μ_t = [1.0];
+julia> Σ_t = [2.0;;];
+julia> state = GaussianStateStochasticProcess(t, μ_t, Σ_t)
+GaussianStateStochasticProcess(0.0, [1.0], [2.0;;])
+```
+
+$(METHODLIST)
+"""
+mutable struct GaussianStateStochasticProcess{T <: Real} <: AbstractState{T}
+    """Time of the state."""
+    t::T
+    """Mean of the stochastic process."""
+    μ_t::Vector{T}
+    """Variance of the stochastic process."""
+    Σ_t::Matrix{T}
+
+    """Constructor with full arguments."""
+    function GaussianStateStochasticProcess(
+            t::T,
+            μ_t::Vector{T},
+            Σ_t::Matrix{T}
+    ) where {T <: Real}
+        return new{T}(t, μ_t, Σ_t)
     end
 
-    function GaussianStateStochasticProcess(k::Integer)
-
-        return new(0.0, zeros(Float64, k), zeros(Float64, k, k))
-
+    """Constructor with type conversion"""
+    function GaussianStateStochasticProcess{Z}(
+            t::T,
+            μ_t::Vector{<:Real},
+            Σ_t::Matrix{<:Real}
+    ) where {Z <: Real, T <: Real}
+        return new{Z}(t, μ_t, Σ_t)
     end
 
-    function GaussianStateStochasticProcess(k::Integer, t::Float64)
-
-        return new(t, zeros(Float64, k), zeros(Float64, k, k))
-
+    """Constructor with different input real type."""
+    function GaussianStateStochasticProcess(
+            t::T,
+            μ_t::Vector{<:Real},
+            Σ_t::Matrix{<:Real}
+    ) where {T <: Real}
+        return new{Z}(t, μ_t, Σ_t)
     end
 
+    """Constructor with number of states."""
+    function GaussianStateStochasticProcess{Z}(k::Integer; kwargs...) where {Z <: Real}
+        return new{Z}(
+            0.0, zeros(Z, k), zeros(Z, k, k))
+    end
+
+    """Constructor with number of states and timestep value."""
+    function GaussianStateStochasticProcess{Z}(
+            t::Real, k::Integer; kwargs...) where {Z <: Real}
+        return new{Z}(
+            t, zeros(Z, k), zeros(Z, k, k))
+    end
 end
 
-function getindex(state::GaussianStateStochasticProcess, i::Int)
+# Simplified constructors
+@inline GaussianStateStochasticProcess(k::Integer; kwargs...) = GaussianStateStochasticProcess{DEFAULT_REAL_TYPE}(
+    k; kwargs...)
+@inline GaussianStateStochasticProcess(t::Real, k::Integer; kwargs...) = GaussianStateStochasticProcess{DEFAULT_REAL_TYPE}(
+    t, k; kwargs...)
+
+"""
+Parametric type conversion of GaussianStateStochasticProcess.
+"""
+function Base.convert(::Type{GaussianStateStochasticProcess{Z1}},
+        gssp::GaussianStateStochasticProcess{Z2}) where {Z1 <: Real, Z2 <: Real}
+    return GaussianStateStochasticProcess{Z1}(gssp.t, gssp.μ_t, gssp.Σ_t)
+end
+
+"""
+Indexing GaussianStateStochasticProcess with Int.
+"""
+function Base.getindex(state::GaussianStateStochasticProcess, i::Int)
     new_state = deepcopy(state)
     new_state.μ_t = new_state.μ_t[i:i]
-    new_state.σ_t = new_state.σ_t[i:i, i:i]
+    new_state.Σ_t = new_state.Σ_t[i:i, i:i]
     return new_state
 end
 
-function getindex(state::GaussianStateStochasticProcess, u::UnitRange{Int64})
+"""
+Indexing GaussianStateStochasticProcess with Supported Index.
+"""
+function Base.getindex(state::GaussianStateStochasticProcess, I...)
     new_state = deepcopy(state)
-    new_state.μ_t = new_state.μ_t[u]
-    new_state.σ_t = new_state.σ_t[u, u]
+    new_state.μ_t = new_state.μ_t[I...]
+    new_state.Σ_t = new_state.Σ_t[I..., I...]
     return new_state
 end
 
-function getindex(state::GaussianStateStochasticProcess, u::Vector{Int64})
-    u = unique(u)
-    new_state = deepcopy(state)
-    new_state.μ_t = new_state.μ_t[u]
-    new_state.σ_t = new_state.σ_t[u, u]
-    return new_state
+######################################################################################
+# ParticleSwarmState
+######################################################################################
+
+"""
+A subtype of `AbstractState` defined for non-parametric Distribution representation of the state.
+In other words, the state is defined by a swarm of particles ``particles_state``.
+
+$(TYPEDEF)
+
+$(TYPEDFIELDS)
+"""
+mutable struct ParticleSwarmState{T <: Real} <: AbstractState{T}
+    """Time of the state."""
+    t::T
+    """Particle's swarm representing the distribution of the state."""
+    particles_state::Matrix{T}
+
+    """Constructor with full arguments."""
+    function ParticleSwarmState(
+            t::T,
+            particles_state::Matrix{T}
+    ) where {T <: Real}
+        return new{T}(t, particles_state)
+    end
+
+    """Constructor with type conversion."""
+    function ParticleSwarmState{Z}(
+            t::T,
+            particles_state::Matrix{T}
+    ) where {Z <: Real, T <: Real}
+        return new{Z}(t, particles_state)
+    end
+
+    """Constructor with number of states."""
+    function ParticleSwarmState{Z}(
+            k::Integer; n_particles::Integer = 10, kwargs...) where {Z <: Real}
+        return new{Z}(0.0, zeros(Z, k, n_particles))
+    end
+
+    """Constructor with number of states and timestep value."""
+    function ParticleSwarmState{Z}(
+            k::Integer, t::Real; n_particles::Integer = 10, kwargs...) where {Z <: Real}
+        return new{Z}(t, zeros(Z, k, n_particles))
+    end
 end
 
-mutable struct ParticleSwarmState <: AbstractState
+# Simplified constructors
+@inline ParticleSwarmState(k::Integer; kwargs...) = ParticleSwarmState{DEFAULT_REAL_TYPE}(
+    k; kwargs...)
+@inline ParticleSwarmState(t::Real, k::Integer; kwargs...) = ParticleSwarmState{DEFAULT_REAL_TYPE}(
+    t, k; kwargs...)
 
-    n_particles::Int64
-    t::Float64
-    particles_state::Array{Float64, 2}
-
-    function ParticleSwarmState(k::Integer; n_particles::Int64 = 10)
-
-        return new(n_particles, 0.0, zeros(Float64, k, n_particles))
-
-    end
-
-    function ParticleSwarmState(k::Integer, t::Real; n_particles::Int64 = 10)
-
-        return new(n_particles, t, zeros(Float64, k, n_particles))
-
-    end
-
-    function ParticleSwarmState(n_particles::Int64, t::Real, particles_state::Array{Float64, 2})
-
-        return new(n_particles, t, particles_state)
-
-    end
-
+"""
+Parametric type conversion of ParticleSwarmState.
+"""
+function Base.convert(::Type{ParticleSwarmState{Z1}},
+        p::ParticleSwarmState{Z2}) where {Z1 <: Real, Z2 <: Real}
+    return ParticleSwarmState{Z1}(p.t, p.particles_state)
 end
 
-function getindex(state::ParticleSwarmState, i::Int)
+"""
+Indexing ParticleSwarmState with Int.
+"""
+function Base.getindex(state::ParticleSwarmState, i::Int)
     new_state = deepcopy(state)
     new_state.particles_state = new_state.particles_state[i:i, :]
     return new_state
 end
 
-function getindex(state::ParticleSwarmState, u::UnitRange{Int64})
+"""
+Indexing ParticleSwarmState with Supported Index.
+"""
+function Base.getindex(state::ParticleSwarmState, I...)
     new_state = deepcopy(state)
-    new_state.particles_state = new_state.particles_state[u, :]
+    new_state.particles_state = new_state.particles_state[I..., :]
     return new_state
 end
 
-function getindex(state::ParticleSwarmState, u::Vector{Int64})
-    u = unique(u)
-    new_state = deepcopy(state)
-    new_state.particles_state = new_state.particles_state[u, :]
-    return new_state
+function Base.size(state::ParticleSwarmState; I...)
+    return size(state.particles_state; I...)
+end
+Base.size(state::ParticleSwarmState{T}, d) where {T} = d::Integer <= 2 ? size(state)[d] : 1
+
+"""
+Get the number of particles in the swarm with length
+"""
+function Base.length(state::ParticleSwarmState)
+    return size(state.particles_state, 2)
 end
 
-struct TimeSeries{T <: AbstractState}
+######################################################################################
+# TimeSeries
+######################################################################################
+"""
+A collection of subtypes of `AbstractState` stored in a Vector. This stucture represents
+a timeseries.
 
-    n_t::Integer
-    n_state::Integer
+$(TYPEDEF)
 
-    state::Vector{T}
+$(TYPEDFIELDS)
+"""
+struct TimeSeries{Z <: Real, T <: AbstractState{Z}}
+    """Vector of states."""
+    values::Vector{T}
 
-    function TimeSeries{T}(n_t::Integer, n_state::Integer; kwargs...) where {T <: AbstractState}
-
-        time = zeros(Float64, n_t)
-        state = [T(n_state; kwargs...) for i in 1:n_t]
-
-        return new{T}(n_t, n_state, state)
-
+    """Constructor with full arguments."""
+    function TimeSeries(
+            values::Vector{T}
+    ) where {Z <: Real, T <: AbstractState{Z}}
+        return new{Z, T}(values)
     end
 
-    function TimeSeries{T}(n_t::Integer, n_state::Integer, t_index::Array{Float64, 1}; kwargs...) where {T <: AbstractState}
-
-        time = zeros(Float64, n_t)
-        state = [T(n_state, t_index[i]; kwargs...) for i in 1:n_t]
-
-        return new{T}(n_t, n_state, state)
-
+    """Constructor with type conversion."""
+    function TimeSeries{Z1}(values::Vector{T}) where {Z1 <: Real, T <: AbstractState}
+        converted_values = convert.(Base.typename(eltype(values)).wrapper{Z1}, values)
+        return new{Z1, eltype(converted_values)}(converted_values)
     end
 
-    function TimeSeries{T}(n_t::Integer, n_state::Integer, state::Vector{T}) where {T <: AbstractState}
-
-        return new{T}(n_t, n_state, state)
-
+    """Constructor with number of states and number of timesteps."""
+    function TimeSeries{Z, T}(
+            n_t::Integer,
+            n_state::Integer;
+            kwargs...
+    ) where {Z <: Real, T <: AbstractState{Z}}
+        return new{Z, T}(repeat([T(n_state; kwargs...)], n_t))
     end
 
-    function TimeSeries(n_t::Integer, n_state::Integer, state::Vector{T}) where {T <: AbstractState}
-
-        return new{T}(n_t, n_state, state)
-
-    end
-
-end
-
-
-function getindex(t::TimeSeries, i::Int)
-    return t.state[i]
-end
-
-function getindex(t::TimeSeries{T}, u::UnitRange{Int64}) where {T <: AbstractState}
-    return TimeSeries{T}(length(u), t.n_state, t.state[u])
-end
-
-function getindex(t::TimeSeries{T}, u::Vector{Int64}) where {T <: AbstractState}
-    return TimeSeries{T}(length(u), t.n_state, t.state[u])
-end
-
-function length(t::TimeSeries)
-    return t.n_t
-end
-
-function iterate(t::TimeSeries)
-    return t[1], 2
-end
-
-function iterate(t::TimeSeries, i)
-
-    if i <= length(t)
-        return t[i], i + 1
-    else
-        return nothing
+    """Constructor with number of states and value of timesteps."""
+    function TimeSeries{Z2, T}(
+            t_index::Vector{<:Real},
+            n_t::Integer,
+            n_state::Integer;
+            kwargs...
+    ) where {Z2 <: Real, T <: AbstractState{Z2}}
+        return new{Z2, T}([T(t_index[i], n_state; kwargs...) for i in 1:n_t])
     end
 end
 
-function lastindex(t::TimeSeries)
-    return t.n_t
-end
+# Simplified constructors
+@inline TimeSeries(T::DataType, n_t::Integer, n_state::Integer; kwargs...) = TimeSeries{
+    T.parameters[1], T}(n_t, n_state; kwargs...)
+@inline TimeSeries(T::DataType, t_index::Vector{<:Real}, n_t::Integer, n_state::Integer; kwargs...) = TimeSeries{
+    T.parameters[1], T}(t_index, n_t, n_state; kwargs...)
+@inline TimeSeries(T::UnionAll, n_t::Integer, n_state::Integer; kwargs...) = TimeSeries{
+    DEFAULT_REAL_TYPE, T{DEFAULT_REAL_TYPE}}(n_t, n_state; kwargs...)
+@inline TimeSeries(T::UnionAll, t_index::Vector{<:Real}, n_t::Integer, n_state::Integer; kwargs...) = TimeSeries{
+    DEFAULT_REAL_TYPE, T{DEFAULT_REAL_TYPE}}(t_index, n_t, n_state; kwargs...)
 
+"""
+Parametric type conversion of TimeSeries.
+"""
+@inline Base.convert(::Type{TimeSeries{Z1, T1}}, ts::TimeSeries{Z2, T2}) where {Z1 <: Real, T1 <: AbstractState{Z1}, Z2 <: Real, T2 <: AbstractState{Z2}} = TimeSeries{Z1}(ts.values)
 
-@recipe function plot(t::TimeSeries{GaussianStateStochasticProcess}; label::Union{String, Array{String}} = "", ic::Real = 0.95)
+"""
+Indexing TimeSeries with Int.
+"""
+@inline getindex(ts::TimeSeries, i::Int) = return ts.values[i]
 
+"""
+Indexing TimeSeries with Supported Index.
+"""
+@inline Base.getindex(ts::TimeSeries, I...) = TimeSeries(ts.values[I...])
+
+"""
+Define length of TimeSeries.
+"""
+@inline Base.length(ts::TimeSeries) = length(ts.values)
+
+"""
+Define iterators of TimeSeries
+"""
+@inline Base.iterate(ts::TimeSeries) = (ts[1], 2)
+@inline Base.iterate(ts::TimeSeries, i) = i <= length(ts) ? (ts[i], i + 1) : nothing
+@inline Base.eltype(ts::TimeSeries) = typeof(ts).parameters[2]
+@inline Base.lastindex(ts::TimeSeries) = length(ts)
+
+######################################################################################
+# Plot's recipe
+######################################################################################
+
+"""
+Plot's recipe for TimeSeries of GaussianStateStochasticProcess.
+"""
+@recipe function plot(ts::TimeSeries{Z, GaussianStateStochasticProcess{Z}};
+        label = "", ic = 0.95) where {Z <: Real}
     dist = Normal(0, 1)
-    mean_process = vcat([t[i].μ_t' for i in 1:t.n_t]...)
-    var_process = vcat([diag(t[i].σ_t)' for i in 1:t.n_t]...)
-    t_index = vcat([t[i].t for i in 1:t.n_t]...)
+    mean_process = stack(map(t -> t.μ_t, ts), dims = 1)
+    var_process = stack(map(t -> diag(t.Σ_t), ts), dims = 1)
+    t_index = stack(map(t -> t.t, ts), dims = 1)
 
     mean_label = isempty(label) ? "" : hcat(vec(["Mean "] .* label)...)
     ci_label = isempty(label) ? "" : hcat(vec(["CI $(Int(ic * 100))% "] .* label)...)
@@ -202,12 +333,22 @@ end
     end
 end
 
-@recipe function plot(t::TimeSeries{ParticleSwarmState}; label = "", index = 1:t.n_state, ic = 0.95, quantile_tab = nothing)
-
-    mean_process = hcat([[mean(t[i].particles_state[j, :]) for j in 1:t.n_state] for i in 1:t.n_t]...)'
-    q_low = hcat([[quantile(t[i].particles_state[j, :], (1 - ic) / 2) for j in 1:t.n_state] for i in 1:t.n_t]...)'
-    q_high = hcat([[quantile(t[i].particles_state[j, :], ic + (1 - ic) / 2) for j in 1:t.n_state] for i in 1:t.n_t]...)'
-    t_index = vcat([t[i].t for i in 1:t.n_t]...)
+"""
+Plot's recipe for TimeSeries of ParticleSwarmState.
+"""
+@recipe function plot(
+        ts::TimeSeries{Z, ParticleSwarmState{Z}};
+        label = "",
+        index = 1:(size(ts[1], 1)),
+        ic = 0.95,
+        quantile_tab = nothing
+) where {Z <: Real}
+    mean_process = vcat(map(s -> mean(s.particles_state', dims = 1), ts)...)
+    q_low = hcat(map(
+        s -> [quantile(i, (1 - ic) / 2) for i in eachrow(s.particles_state)], ts)...)'
+    q_high = hcat(map(
+        s -> [quantile(i, ic + (1 - ic) / 2) for i in eachrow(s.particles_state)], ts)...)'
+    t_index = stack(map(t -> t.t, ts), dims = 1)
 
     mean_label = isempty(label) ? "" : hcat(vec(["Mean "] .* label)...)
     ci_label = isempty(label) ? "" : hcat(vec(["CI $(Int(ic * 100))% "] .* label)...)
@@ -225,7 +366,8 @@ end
 
     if !isnothing(quantile_tab)
         for q in quantile_tab
-            q_values = hcat([[quantile(t[i].particles_state[j, :], q) for j in 1:t.n_state] for i in 1:t.n_t]...)'
+            q_values = hcat(map(
+                s -> [quantile(i, q) for i in eachrow(s.particles_state)], ts)...)'
             q_label = isempty(label) ? "" : hcat(vec(["Q$q "] .* label)...)
             @series begin
                 label := q_label
@@ -233,52 +375,89 @@ end
             end
         end
     end
-
 end
 
+######################################################################################
+# TimeSeries metrics
+######################################################################################
+
+"""
+Return the Root Mean Squared Error (RMSE) between two vector ``x_true`` and ``x_pred``.
+"""
 function _base_rmse(x_true, x_pred)
-
     return vec(mean((x_true - x_pred) .^ 2, dims = 2))
-
 end
 
-
-function rmse(x_true, x_pred::TimeSeries{GaussianStateStochasticProcess})
-
+"""
+Return the Root Mean Squared Error (RMSE) between the vector ``x_true`` and the TimeSeries{GaussianStateStochasticProcess} prediction ``x_pred``.
+"""
+function rmse(
+        x_true, x_pred::TimeSeries{Z, GaussianStateStochasticProcess{Z}}) where {Z <: Real}
     return _base_rmse(x_true, hcat(map(x -> x.μ_t, x_pred)...))
-
 end
 
-
-function rmse(x_true, x_pred::TimeSeries{ParticleSwarmState})
-
-    return _base_rmse(x_true, hcat(map(x -> median(x.particles_state, dims = 2), x_pred)...))
-
+"""
+Return the Root Mean Squared Error (RMSE) between the vector ``x_true`` and the TimeSeries{ParticleSwarmState} prediction ``x_pred``.
+"""
+function rmse(x_true, x_pred::TimeSeries{Z, ParticleSwarmState{Z}}) where {Z <: Real}
+    return _base_rmse(
+        x_true,
+        hcat(map(x -> mean(x.particles_state, dims = 2), x_pred)...)
+    )
 end
 
-
-function _get_confidence_interval(x_pred::TimeSeries{GaussianStateStochasticProcess}; α = 0.05)
+"""
+Return the confidence interval of a given confidence value ``1-α`` for a TimeSeries{GaussianStateStochasticProcess} prediction ``x_pred``.
+"""
+function _get_confidence_interval(
+        x_pred::TimeSeries{Z, GaussianStateStochasticProcess{Z}};
+        α = 0.05
+) where {Z <: Real}
     x_mean = hcat(map(x -> x.μ_t, x_pred)...)
-    x_std = hcat(map(x -> sqrt.(diag(x.σ_t)), x_pred)...)
+    x_std = hcat(map(x -> sqrt.(diag(x.Σ_t)), x_pred)...)
     q_α = quantile(Normal(0, 1), 1 - (α / 2))
     return x_mean - q_α .* x_std, x_mean + q_α .* x_std
 end
 
-
-function _get_confidence_interval(x_pred::TimeSeries{ParticleSwarmState}; α = 0.05)
-    x_low_pred = hcat(map(x -> mapslices(y -> quantile(y, α / 2), x.particles_state, dims = 2), x_pred)...)
-    x_high_pred = hcat(map(x -> mapslices(y -> quantile(y, 1 - (α / 2)), x.particles_state, dims = 2), x_pred)...)
+"""
+Return the confidence interval of a given confidence value ``1-α`` for a TimeSeries{ParticleSwarmState} prediction ``x_pred``.
+"""
+function _get_confidence_interval(
+        x_pred::TimeSeries{Z, ParticleSwarmState{Z}}; α = 0.05) where {Z <: Real}
+    x_low_pred = hcat(
+        map(
+        x -> mapslices(y -> quantile(y, α / 2), x.particles_state, dims = 2),
+        x_pred
+    )...,
+    )
+    x_high_pred = hcat(
+        map(
+        x -> mapslices(y -> quantile(y, 1 - (α / 2)), x.particles_state, dims = 2),
+        x_pred
+    )...,
+    )
     return x_low_pred, x_high_pred
 end
 
-
-function coverage_probability(x_true, x_pred::Union{TimeSeries{GaussianStateStochasticProcess}, TimeSeries{ParticleSwarmState}}; α = 0.05)
+"""
+Return the coverage probability of a given confidence interval of a given confidence value ``1-α`` between the vector ``x_true`` and the TimeSeries prediction ``x_pred``.
+"""
+function coverage_probability(
+        x_true,
+        x_pred::TimeSeries;
+        α = 0.05
+)
     x_low_pred, x_high_pred = _get_confidence_interval(x_pred; α = α)
     return vec(mean(x_low_pred .< x_true .< x_high_pred, dims = 2))
 end
 
-
-function average_width(x_pred::Union{TimeSeries{GaussianStateStochasticProcess}, TimeSeries{ParticleSwarmState}}; α = 0.05)
+"""
+Return the average width of a given confidence interval of a given confidence value ``1-α`` of the TimeSeries prediction ``x_pred``.
+"""
+function average_width(
+        x_pred::TimeSeries;
+        α = 0.05
+)
     x_low_pred, x_high_pred = _get_confidence_interval(x_pred; α = α)
     return vec(mean(x_high_pred - x_low_pred, dims = 2))
 end
