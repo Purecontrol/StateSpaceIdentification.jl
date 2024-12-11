@@ -1,11 +1,23 @@
 """
 $(TYPEDEF)
 
-StateSpaceSystem is an abstract type describing a state-space system, which is a global class for models having a transition
+AbstractStateSpaceSystem is an abstract type describing a state-space system, which is a global class for models having a transition
 equation relating hidden states at time `t` (`x_t`), to the states at time `t+1` (`x_{t+1}`), and an observation equation
 relating hidden states `x_t` to observations `y_t`.
 """
 abstract type AbstractStateSpaceSystem end
+"""
+$(TYPEDEF)
+
+Linear version of AbstractStateSpaceSystem.
+"""
+abstract type AbstractLinearStateSpaceSystem <: AbstractStateSpaceSystem end
+"""
+$(TYPEDEF)
+
+Non-Linear version of AbstractStateSpaceSystem.
+"""
+abstract type AbstractNonLinearStateSpaceSystem <: AbstractStateSpaceSystem end
 
 """
 $(TYPEDSIGNATURES)
