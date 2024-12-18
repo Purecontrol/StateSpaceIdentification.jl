@@ -1,3 +1,5 @@
+MatOrFun = Union{Matrix, Function}
+VecOrFun = Union{Vector, Function}
 """
 $(TYPEDEF)
 
@@ -5,19 +7,19 @@ AbstractStateSpaceSystem is an abstract type describing a state-space system, wh
 equation relating hidden states at time `t` (`x_t`), to the states at time `t+1` (`x_{t+1}`), and an observation equation
 relating hidden states `x_t` to observations `y_t`.
 """
-abstract type AbstractStateSpaceSystem end
+abstract type AbstractStateSpaceSystem{Z<:Real} end
 """
 $(TYPEDEF)
 
 Linear version of AbstractStateSpaceSystem.
 """
-abstract type AbstractLinearStateSpaceSystem <: AbstractStateSpaceSystem end
+abstract type AbstractLinearStateSpaceSystem{Z<:Real} <: AbstractStateSpaceSystem{Z} end
 """
 $(TYPEDEF)
 
 Non-Linear version of AbstractStateSpaceSystem.
 """
-abstract type AbstractNonLinearStateSpaceSystem <: AbstractStateSpaceSystem end
+abstract type AbstractNonLinearStateSpaceSystem{Z<:Real} <: AbstractStateSpaceSystem{Z} end
 
 """
 $(TYPEDSIGNATURES)

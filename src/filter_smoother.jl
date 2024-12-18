@@ -5,14 +5,14 @@ Call the filtering process of the choosen method on the provided data (``observa
 and ``control_data``) and the ``model``
 """
 function filtering(
-        model::ForecastingModel,
-        observation_data::Matrix,
-        exogenous_data::Matrix,
-        control_data::Matrix;
+        model::ForecastingModel{Z},
+        observation_data::Matrix{Z},
+        exogenous_data::Matrix{Z},
+        control_data::Matrix{Z};
         filtering_method = nothing,
-        parameters = model.parameters,
+        parameters::Vector{Z} = model.parameters,
         kwargs...
-)
+) where {Z <: Real}
     if isnothing(filtering_method)
         filtering_method = default_filter(model; kwargs...)
     end
@@ -28,8 +28,8 @@ function filtering(
         model.system,
         filtering_method,
         observation_data,
-        exogenous_variables,
-        control_variables,
+        exogenous_data,
+        control_data,
         parameters
     )
 end

@@ -16,27 +16,40 @@ $(TYPEDEF)
 
 $(TYPEDFIELDS)
 """
-mutable struct GaussianNonLinearStateSpaceSystem <: AbstractNonLinearStateSpaceSystem
+mutable struct GaussianNonLinearStateSpaceSystem{Z <: Real} <: AbstractNonLinearStateSpaceSystem{Z}
 
     # General components of gaussian non linear state space systems
-    """Function ``M_t`` which is a ``n_X -> n_X`` function."""
-    M_t::Function
-    """Function ``H_t`` which is a ``n_X -> n_Y`` function."""
-    H_t::Function
-    """Function ``R_t`` returning a ``n_X \\times n_X`` matrix."""
-    R_t::Function
-    """Function ``Q_t`` returning a ``n_Y \\times n_Y`` matrix."""
-    Q_t::Function
+    """Provider ``M_t`` which is a ``n_X -> n_X`` function."""
+    M_t::NonLinearProvider{Z}
+    """Provider ``H_t`` which is a ``n_X -> n_Y`` function."""
+    H_t::NonLinearProvider{Z}
+    """Provider ``R_t`` returning a ``n_X \\times n_X`` matrix."""
+    R_t::AbstractMatrixProvider{Z}
+    """Provider ``Q_t`` returning a ``n_Y \\times n_Y`` matrix."""
+    Q_t::AbstractMatrixProvider{Z}
 
     """Number of state variables."""
     n_X::Int
     """Number of observations."""
     n_Y::Int
     """Time between two timesteps in seconds."""
-    dt::Real
+    dt::Z
 
-    function GaussianNonLinearStateSpaceSystem(M_t, H_t, R_t, Q_t, n_X, n_Y, dt)
-        return new(M_t, H_t, R_t, Q_t, n_X, n_Y, dt)
+    """Constructor with full arguments."""
+    function GaussianNonLinearStateSpaceSystem{Z}(M_t, H_t, R_t, Q_t, n_X, n_Y, dt) where {Z <: Real}
+        return new{Z}(M_t, H_t, R_t, Q_t, n_X, n_Y, dt)
+    end
+
+    """Constructor with Type conversion."""
+    function GaussianNonLinearStateSpaceSystem{Z}(M_t::Union{Function, NonLinearProvider{Z}}, H_t::Union{Function, NonLinearProvider{Z}}, R_t::Union{MatOrFun, AbstractMatrixProvider{Z}}, Q_t::Union{MatOrFun, AbstractMatrixProvider{Z}}, n_X, n_Y, dt) where {Z <: Real}
+
+            # Convert types
+            M_t = isa(M_t, NonLinearProvider) ? M_t : NonLinearProvider{Z}(M_t)
+            H_t = isa(H_t, NonLinearProvider) ? H_t : NonLinearProvider{Z}(H_t)
+            R_t = isa(R_t, AbstractMatrixProvider) ? R_t : (isa(R_t, Matrix) ? StaticMatrix{Z}(R_t) : DynamicMatrix{Z}(R_t))
+            Q_t = isa(Q_t, AbstractMatrixProvider) ? Q_t : (isa(Q_t, Matrix) ? StaticMatrix{Z}(Q_t) : DynamicMatrix{Z}(Q_t))
+
+        return new{Z}(M_t, H_t, R_t, Q_t, n_X, n_Y, dt)
     end
 end
 
@@ -45,7 +58,7 @@ $(TYPEDSIGNATURES)
 
 The ``default_filter`` for ``GaussianLinearStateSpaceSystem`` is the ``ParticleFilter``.
 """
-function default_filter(model::ForecastingModel{Z, GaussianNonLinearStateSpaceSystem, S};
+function default_filter(model::ForecastingModel{Z, GaussianNonLinearStateSpaceSystem{Z}, S};
         kwargs...) where {Z <: Real, S <: AbstractState{Z}}
     return ParticleFilter(model; kwargs...)
 end
@@ -55,7 +68,7 @@ $(TYPEDSIGNATURES)
 
 The ``default_smoother`` for ``GaussianLinearStateSpaceSystem`` is the ``BackwardSimulationSmoother``.
 """
-function default_smoother(model::ForecastingModel{Z, GaussianNonLinearStateSpaceSystem, S};
+function default_smoother(model::ForecastingModel{Z, GaussianNonLinearStateSpaceSystem{Z}, S};
         kwargs...) where {Z <: Real, S <: AbstractState{Z}}
     return BackwardSimulationSmoother(model; kwargs...)
 end
@@ -66,8 +79,8 @@ $(TYPEDSIGNATURES)
 The ``transition`` function for ``GaussianNonLinearStateSpaceSystem`` which is ``y_{t}   &=  H_t (\\x{t})``.
 """
 function transition(
-        ssm::GaussianNonLinearStateSpaceSystem,
-        state_variables::Vector{Z},
+        ssm::GaussianNonLinearStateSpaceSystem{Z},
+        state_variables::VecOrMat{Z},
         exogenous_variables::Vector{Z},
         control_variables::Vector{Z},
         parameters::Vector{Z},
@@ -82,8 +95,8 @@ $(TYPEDSIGNATURES)
 The ``observation`` function for ``GaussianNonLinearStateSpaceSystem`` which is ``y_{t} &=  H_t \\x{t} + d_t + \\epsilon_{t} \\quad &\\epsilon_{t} \\sim \\mathcal{N}(0, Q_t)``
 """
 function observation(
-        ssm::GaussianNonLinearStateSpaceSystem,
-        state_variables::Vector{Z},
+        ssm::GaussianNonLinearStateSpaceSystem{Z},
+        state_variables::VecOrMat{Z},
         exogenous_variables::Vector{Z},
         parameters::Vector{Z},
         t::Z
@@ -95,16 +108,17 @@ end
 Convert ForecastingModel{GaussianLinearStateSpaceSystem} into ForecastingModel{GaussianNonLinearStateSpaceSystem}.
 """
 function Base.convert(
-        ::Type{ForecastingModel{Z, GaussianNonLinearStateSpaceSystem, S}},
-        model::ForecastingModel{Z, GaussianLinearStateSpaceSystem, S}
+        ::Type{ForecastingModel{Z, GaussianNonLinearStateSpaceSystem{Z}, S}},
+        model::ForecastingModel{Z, GaussianLinearStateSpaceSystem{Z}, S}
 ) where {Z <: Real, S <: AbstractState{Z}}
     @inline M_t(x, exogenous, u, params, t) = model.system.A_t(exogenous, params, t) * x .+
                                               model.system.B_t(exogenous, params, t) * u .+
                                               model.system.c_t(exogenous, params, t)
+                                              
     @inline H_t(x, exogenous, params, t) = model.system.H_t(exogenous, params, t) * x .+
                                            model.system.d_t(exogenous, params, t)
 
-    gnlss = GaussianNonLinearStateSpaceSystem(
+    gnlss = GaussianNonLinearStateSpaceSystem{Z}(
         M_t,
         H_t,
         model.system.R_t,

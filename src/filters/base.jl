@@ -54,6 +54,10 @@ function filtering!(
         control_data,
         parameters
 ) where {F <: AbstractFilter}
+    println(typeof(observation_data))
+    println(typeof(exogenous_data))
+    println(typeof(control_data))
+    println(typeof(parameters))
     return error("The function `filtering!(s::AbstractStateSpaceSystem, f::AbstractFilter, ...)` has to be defined for subtype of AbstractFilter.")
 end
 
@@ -66,11 +70,15 @@ function filtering!(
         filter_output::AbstractFilterOutput,
         sys::AbstractStateSpaceSystem,
         filter_method::F,
-        observation_data,
-        exogenous_data,
-        control_data,
-        parameters
-) where {F <: AbstractFilter}
+        observation_data::Matrix{Z},
+        exogenous_data::Matrix{Z},
+        control_data::Matrix{Z},
+        parameters::Vector{Z}
+) where {F <: AbstractFilter, Z <: Real}
+    println(typeof(observation_data))
+    println(typeof(exogenous_data))
+    println(typeof(control_data))
+    println(typeof(parameters))
     return error("The function `filtering!(fo::AbstractFilterOutput, s::AbstractStateSpaceSystem, f::AbstractFilter, ...)` has to be defined for subtype of AbstractFilter.")
 end
 

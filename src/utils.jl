@@ -1,3 +1,6 @@
+using FunctionWrappers
+import FunctionWrappers: FunctionWrapper
+
 """
 Discrete sampling over ``n_particules`` with ``prob`` probabilities.
 
@@ -86,4 +89,187 @@ function standard_scaler(X::Matrix; with_mean = true, with_std = true)
     μ = with_mean ? mean(X, dims = 1) : zeros(1, n_X)
     σ = with_std ? std(X, dims = 1) : ones(1, n_X)
     return _scale(X, μ, σ)
+end
+
+###########################################################################################################
+# MatrixProviders
+###########################################################################################################
+
+"""
+$(TYPEDEF)
+
+FunctionWrapper for function that takes as input (Vector{T}, Vector{T}, T) and returns a Matrix{T}.
+"""
+const LinearMatFunction{T} = FunctionWrapper{
+    Matrix{T}, Tuple{Vector{T}, Vector{T}, T}} where {T <: Real}
+
+"""
+$(TYPEDEF)
+
+FunctionWrapper for function that takes as input (Vector{T}, Vector{T}, T) and returns a Vector{T}.
+"""
+const LinearVecFunction{T} = FunctionWrapper{
+    Vector{T}, Tuple{Vector{T}, Vector{T}, T}} where {T <: Real}
+
+# TODO : see if it's possible to replace VecOrMat by Matrix or Vector for NonLinearMatorVecFunction?
+"""
+$(TYPEDEF)
+
+FunctionWrapper for function that takes as input (VecOrMat{T}, Vector{T}, Vector{T}, T) and returns a VecOrMat{T}.
+"""
+const NonLinearMatorVecFunction{T} = FunctionWrapper{
+    VecOrMat{T}, Tuple{VecOrMat{T}, Vector{T}, Vector{T}, Vector{T}, T}} where {T <: Real}
+
+"""
+$(TYPEDEF)
+
+AbstractProvider is an abstract type defined for elements in AbstractStateSpaceSystem that allows 
+to generate transition and observation equations.
+"""
+abstract type AbstractProvider{Z <: Real} end
+
+"""
+$(TYPEDEF)
+
+LinearAbstractProvider is a subtype of AbstractProvider for linear expressions with 
+respect to x and u.
+"""
+abstract type LinearAbstractProvider{Z <: Real} <: AbstractProvider{Z} end
+
+"""
+$(TYPEDEF)
+
+AbstractProvider is a subtype of AbstractProvider for subtype returning a Vector{Z}.
+"""
+abstract type AbstractVectorProvider{Z <: Real} <: LinearAbstractProvider{Z} end
+"""
+$(TYPEDEF)
+
+AbstractProvider is a subtype of AbstractProvider for subtype returning a Matrix{Z}.
+"""
+abstract type AbstractMatrixProvider{Z <: Real} <: LinearAbstractProvider{Z} end
+
+"""
+$(TYPEDEF)
+
+StaticMatrix is a subtype of AbstractMatrixProvider containing Matrix{Z}.
+"""
+struct StaticMatrix{Z <: Real} <: AbstractMatrixProvider{Z}
+    value::Matrix{Z}
+end
+
+"""
+$(TYPEDEF)
+
+StaticVector is a subtype of AbstractVectorProvider containing Vector{Z}.
+"""
+struct StaticVector{Z <: Real} <: AbstractVectorProvider{Z}
+    value::Vector{Z}
+end
+
+"""
+$(TYPEDEF)
+
+DynamicMatrix is a subtype of AbstractMatrixProvider containing MatFunction{Z} 
+that returns a Matrix{Z}.
+"""
+struct DynamicMatrix{Z <: Real} <: AbstractMatrixProvider{Z}
+    func::LinearMatFunction{Z}
+
+    function DynamicMatrix{Z}(f::Function) where {Z <: Real}
+        new{Z}(LinearMatFunction{Z}(f))
+    end
+end
+
+"""
+$(TYPEDEF)
+
+DynamicVector is a subtype of AbstractVectorProvider containing VecFunction{Z} 
+that returns a Vector{Z}.
+"""
+struct DynamicVector{Z <: Real} <: AbstractVectorProvider{Z}
+    func::LinearVecFunction{Z}
+
+    function DynamicVector{Z}(f::Function) where {Z <: Real}
+        new{Z}(LinearVecFunction{Z}(f))
+    end
+end
+
+"""
+$(TYPEDEF)
+
+NonLinearProvider is a subtype of AbstractProvider containing NonLinearMatorVecFunction{Z} 
+for provider expressing non linear relations with respect to x and u.
+"""
+struct NonLinearProvider{Z <: Real} <: AbstractProvider{Z}
+    func::NonLinearMatorVecFunction{Z}
+
+    function NonLinearProvider{Z}(f::Function) where {Z <: Real}
+        new{Z}(NonLinearMatorVecFunction{Z}(f))
+    end
+end
+
+"""
+Define `call` operator for LinearAbstractProvider with exogenous parameters as view.
+
+$(TYPEDSIGNATURES)
+"""
+@inline function (A::LinearAbstractProvider{Z})(
+        exogenous::SubArray{Z}, params, t) where {Z <: Real}
+    return A(copy(exogenous), params, t)
+end
+
+"""
+Define `call` operator for StaticMatrix.
+
+$(TYPEDSIGNATURES)
+"""
+@inline function (A::StaticMatrix{Z})(exogenous::Vector{Z}, params, t) where {Z <: Real}
+    return A.value
+end
+
+"""
+Define `call` operator for StaticVector.
+
+$(TYPEDSIGNATURES)
+"""
+@inline function (A::StaticVector{Z})(exogenous::Vector{Z}, params, t) where {Z <: Real}
+    return A.value
+end
+
+"""
+Define `call` operator for DynamicMatrix.
+
+$(TYPEDSIGNATURES)
+"""
+@inline function (A::DynamicMatrix{Z})(exogenous::Vector{Z}, params, t) where {Z <: Real}
+    return A.func(exogenous, params, t)
+end
+
+"""
+Define `call` operator for DynamicVector.
+
+$(TYPEDSIGNATURES)
+"""
+@inline function (A::DynamicVector{Z})(exogenous::Vector{Z}, params, t) where {Z <: Real}
+    return A.func(exogenous, params, t)
+end
+
+"""
+Define `call` operator for NonLinearProvider with exogenous parameters as view.
+
+$(TYPEDSIGNATURES)
+"""
+@inline function (A::NonLinearProvider{Z})(
+        x, exogenous::SubArray{Z}, u, params, t) where {Z <: Real}
+    return A(x, copy(exogenous), u, params, t)
+end
+
+"""
+Define `call` operator for NonLinearProvider.
+
+$(TYPEDSIGNATURES)
+"""
+@inline function (A::NonLinearProvider{Z})(x, exogenous::Vector{Z}, u, params, t) where {Z <: Real}
+    return A.func(x, exogenous, u, params, t)
 end
