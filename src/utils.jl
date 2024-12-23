@@ -98,27 +98,27 @@ end
 """
 $(TYPEDEF)
 
-FunctionWrapper for function that takes as input (Vector{T}, Vector{T}, T) and returns a Matrix{T}.
+FunctionWrapper for function that takes as input (Vector{T}, Vector{<:Real}, T) and returns a Matrix{T}.
 """
 const LinearMatFunction{T} = FunctionWrapper{
-    Matrix{T}, Tuple{Vector{T}, Vector{T}, T}} where {T <: Real}
+    Matrix{T}, Tuple{Vector{T}, Vector{<:Real}, T}} where {T <: Real}
 
 """
 $(TYPEDEF)
 
-FunctionWrapper for function that takes as input (Vector{T}, Vector{T}, T) and returns a Vector{T}.
+FunctionWrapper for function that takes as input (Vector{T}, Vector{<:Real}, T) and returns a Vector{T}.
 """
 const LinearVecFunction{T} = FunctionWrapper{
-    Vector{T}, Tuple{Vector{T}, Vector{T}, T}} where {T <: Real}
+    Vector{T}, Tuple{Vector{T}, Vector{<:Real}, T}} where {T <: Real}
 
 # TODO : see if it's possible to replace VecOrMat by Matrix or Vector for NonLinearMatorVecFunction?
 """
 $(TYPEDEF)
 
-FunctionWrapper for function that takes as input (VecOrMat{T}, Vector{T}, Vector{T}, T) and returns a VecOrMat{T}.
+FunctionWrapper for function that takes as input (VecOrMat{T}, Vector{T}, Vector{<:Real}, T) and returns a VecOrMat{T}.
 """
 const NonLinearMatorVecFunction{T} = FunctionWrapper{
-    VecOrMat{T}, Tuple{VecOrMat{T}, Vector{T}, Vector{T}, Vector{T}, T}} where {T <: Real}
+    VecOrMat{T}, Tuple{VecOrMat{T}, Vector{T}, Vector{T}, Vector{<:Real}, T}} where {T <: Real}
 
 """
 $(TYPEDEF)
@@ -174,11 +174,11 @@ DynamicMatrix is a subtype of AbstractMatrixProvider containing MatFunction{Z}
 that returns a Matrix{Z}.
 """
 struct DynamicMatrix{Z <: Real} <: AbstractMatrixProvider{Z}
-    func::LinearMatFunction{Z}
+    func::Function#LinearMatFunction{Z}
 
-    function DynamicMatrix{Z}(f::Function) where {Z <: Real}
-        new{Z}(LinearMatFunction{Z}(f))
-    end
+    # function DynamicMatrix{Z}(f::Function) where {Z <: Real}
+    #     new{Z}(LinearMatFunction{Z}(f))
+    # end
 end
 
 """
@@ -188,11 +188,11 @@ DynamicVector is a subtype of AbstractVectorProvider containing VecFunction{Z}
 that returns a Vector{Z}.
 """
 struct DynamicVector{Z <: Real} <: AbstractVectorProvider{Z}
-    func::LinearVecFunction{Z}
+    func::Function #LinearVecFunction{Z}
 
-    function DynamicVector{Z}(f::Function) where {Z <: Real}
-        new{Z}(LinearVecFunction{Z}(f))
-    end
+    # function DynamicVector{Z}(f::Function) where {Z <: Real}
+    #     new{Z}(LinearVecFunction{Z}(f))
+    # end
 end
 
 """
@@ -202,11 +202,11 @@ NonLinearProvider is a subtype of AbstractProvider containing NonLinearMatorVecF
 for provider expressing non linear relations with respect to x and u.
 """
 struct NonLinearProvider{Z <: Real} <: AbstractProvider{Z}
-    func::NonLinearMatorVecFunction{Z}
+    func::Function #NonLinearMatorVecFunction{Z}
 
-    function NonLinearProvider{Z}(f::Function) where {Z <: Real}
-        new{Z}(NonLinearMatorVecFunction{Z}(f))
-    end
+    # function NonLinearProvider{Z}(f::Function) where {Z <: Real}
+    #     new{Z}(NonLinearMatorVecFunction{Z}(f))
+    # end
 end
 
 """
@@ -224,7 +224,7 @@ Define `call` operator for StaticMatrix.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::StaticMatrix{Z})(exogenous::Vector{Z}, params, t) where {Z <: Real}
+@inline function (A::StaticMatrix{Z})(exogenous::Vector{Z}, params, t)::Matrix{Z} where {Z <: Real}
     return A.value
 end
 
@@ -233,7 +233,7 @@ Define `call` operator for StaticVector.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::StaticVector{Z})(exogenous::Vector{Z}, params, t) where {Z <: Real}
+@inline function (A::StaticVector{Z})(exogenous::Vector{Z}, params, t)::Vector{Z} where {Z <: Real}
     return A.value
 end
 
@@ -242,7 +242,7 @@ Define `call` operator for DynamicMatrix.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::DynamicMatrix{Z})(exogenous::Vector{Z}, params, t) where {Z <: Real}
+@inline function (A::DynamicMatrix{Z})(exogenous::Vector{Z}, params::Vector{D}, t::D)::Matrix{D} where {Z <: Real, D <: Real}
     return A.func(exogenous, params, t)
 end
 
@@ -251,7 +251,7 @@ Define `call` operator for DynamicVector.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::DynamicVector{Z})(exogenous::Vector{Z}, params, t) where {Z <: Real}
+@inline function (A::DynamicVector{Z})(exogenous::Vector{Z}, params::Vector{D}, t::D)::Vector{D} where {Z <: Real, D <: Real}
     return A.func(exogenous, params, t)
 end
 
@@ -272,4 +272,9 @@ $(TYPEDSIGNATURES)
 """
 @inline function (A::NonLinearProvider{Z})(x, exogenous::Vector{Z}, u, params, t) where {Z <: Real}
     return A.func(x, exogenous, u, params, t)
+end
+
+function _promote(args...)
+    _type = Base.promote_eltype(args...)
+    return map(x -> convert.(_type, x), args)
 end

@@ -10,7 +10,7 @@ is a state-space model, and given `N` data points, the filter computes:
 
 Each filter has its own methods for computing the distribution described above.
 """
-abstract type AbstractFilter end
+abstract type AbstractFilter{Z <: Real} end
 
 """
 $(TYPEDEF)
@@ -47,17 +47,13 @@ $(TYPEDSIGNATURES)
 Abstract ``filtering!(s::AbstractStateSpaceSystem, f::AbstractFilter, ...)`` function that has to be defined for all subtypes of AbstractFilter.
 """
 function filtering!(
-        sys::AbstractStateSpaceSystem,
-        filter_method::F,
+        sys::AbstractStateSpaceSystem{Z},
+        filter_method::AbstractFilter{Z},
         observation_data,
         exogenous_data,
         control_data,
         parameters
-) where {F <: AbstractFilter}
-    println(typeof(observation_data))
-    println(typeof(exogenous_data))
-    println(typeof(control_data))
-    println(typeof(parameters))
+) where {Z <: Real}
     return error("The function `filtering!(s::AbstractStateSpaceSystem, f::AbstractFilter, ...)` has to be defined for subtype of AbstractFilter.")
 end
 
@@ -67,18 +63,14 @@ $(TYPEDSIGNATURES)
 Abstract ``filtering!(fo::AbstractFilterOutput, s::AbstractStateSpaceSystem, f::AbstractFilter, ...)`` function that has to be defined for all subtypes of AbstractFilter.
 """
 function filtering!(
-        filter_output::AbstractFilterOutput,
-        sys::AbstractStateSpaceSystem,
-        filter_method::F,
-        observation_data::Matrix{Z},
-        exogenous_data::Matrix{Z},
-        control_data::Matrix{Z},
-        parameters::Vector{Z}
-) where {F <: AbstractFilter, Z <: Real}
-    println(typeof(observation_data))
-    println(typeof(exogenous_data))
-    println(typeof(control_data))
-    println(typeof(parameters))
+        filter_output::AbstractFilterOutput{Z},
+        sys::AbstractStateSpaceSystem{Z},
+        filter_method::AbstractFilter{Z},
+        observation_data,
+        exogenous_data,
+        control_data,
+        parameters
+) where {Z <: Real}
     return error("The function `filtering!(fo::AbstractFilterOutput, s::AbstractStateSpaceSystem, f::AbstractFilter, ...)` has to be defined for subtype of AbstractFilter.")
 end
 
@@ -93,7 +85,7 @@ $(TYPEDEF)
 directly determining the parameters of the distribution. For example, if the distribution is a Gaussian,
 the filter computes estimates of the mean (`\\mu`) and variance (`\\sigma^2`), which fully characterize the distribution.
 """
-abstract type AbstractDeterministicFilter <: AbstractFilter end
+abstract type AbstractDeterministicFilter{Z <: Real} <: AbstractFilter{Z} end
 
 """
 $(TYPEDEF)
@@ -101,7 +93,7 @@ $(TYPEDEF)
 `AbstractGaussianDeterministicFilter` is a subtype of `AbstractDeterministicFilter` designed for target distributions that are
 Gaussian. The output distributions are `TimeSeries` of `GaussianStateStochasticProcess`.
 """
-abstract type AbstractGaussianDeterministicFilter <: AbstractDeterministicFilter end
+abstract type AbstractGaussianDeterministicFilter{Z <: Real} <: AbstractDeterministicFilter{Z} end
 
 """
 $(TYPEDEF)
@@ -121,7 +113,7 @@ $(TYPEDEF)
 `AbstractSimulationBasedFilter` is a subtype of `AbstractFilter` for filters that approximate the distribution using 
 samples. At each timestep, the distribution is approximated using a sample of `n_particles` particles.
 """
-abstract type AbstractSimulationBasedFilter <: AbstractFilter end
+abstract type AbstractSimulationBasedFilter{Z <: Real} <: AbstractFilter{Z} end
 
 """
 $(TYPEDEF)
@@ -129,7 +121,7 @@ $(TYPEDEF)
 `AbstractStochasticMonteCarloFilter` is a subtype of `AbstractSimulationBasedFilter` where the sampling uses Sequential Monte Carlo
 methods.
 """
-abstract type AbstractStochasticMonteCarloFilter <: AbstractSimulationBasedFilter end
+abstract type AbstractStochasticMonteCarloFilter{Z <: Real} <: AbstractSimulationBasedFilter{Z} end
 
 """
 $(TYPEDEF)

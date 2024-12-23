@@ -14,14 +14,14 @@ function filtering(
         kwargs...
 ) where {Z <: Real}
     if isnothing(filtering_method)
-        filtering_method = default_filter(model; kwargs...)
+        filtering_method = default_filter(model; kwargs...)::AbstractFilter{Z}
     end
 
     if !(isa(filtering_method, AbstractFilter))
         @error "The type of the filtering method need a subtype of AbstractFilter."
     end
 
-    filter_output = get_filter_output(filtering_method, model, observation_data)
+    filter_output = get_filter_output(filtering_method, model, observation_data)::AbstractFilterOutput{Z}
 
     return filtering!(
         filter_output,
@@ -108,16 +108,16 @@ Call the filtering process of the choosen method on the provided data (``observa
 and ``control_data``) to compute the likelihood of the model with respect of the observations.
 """
 function loglike(
-        model::ForecastingModel,
-        observation_data,
-        exogenous_data,
-        control_data;
-        filter_method::AbstractFilter = default_filter(model),
-        parameters = model.parameters
-)
+        model::ForecastingModel{Z},
+        observation_data::Matrix{Z},
+        exogenous_data::Matrix{Z},
+        control_data::Matrix{Z};
+        parameters::Vector{D} = model.parameters,
+        filter_method::AbstractFilter{D} = default_filter(model, type=eltype(parameters))
+) where {Z <: Real, D <: Real}
     return filtering!(
         model.system,
-        deepcopy(filter_method),
+        filter_method,
         observation_data,
         exogenous_data,
         control_data,

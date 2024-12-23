@@ -31,18 +31,38 @@ mutable struct KalmanFilterState{Z <: Real} <: AbstractFilterState{Z}
             0.0
         )
     end
+
+    function KalmanFilterState{K}(init_state::GaussianStateStochasticProcess,
+        n_X::Int, n_Y::Int) where {K <: Real}
+        new{K}(
+            init_state.μ_t,
+            init_state.Σ_t,
+            zeros(K, n_X),
+            zeros(K, n_X, n_X),
+            zeros(K, n_X, n_Y),
+            zeros(K, n_X, n_Y),
+            zeros(K, n_X, n_X),
+            zeros(K, n_Y, n_Y),
+            zeros(K, n_Y),
+            0.0
+        )
+    end
 end
 
-mutable struct KalmanFilter{Z <: Real} <: AbstractGaussianDeterministicFilter
+mutable struct KalmanFilter{Z <: Real} <: AbstractGaussianDeterministicFilter{Z}
     init_state_x::GaussianStateStochasticProcess{Z}
     state::KalmanFilterState{Z}
 
     """
     Constructor with gaussian init state.
     """
-    function KalmanFilter(
-            init_state::GaussianStateStochasticProcess{Z}, n_X, n_Y) where {Z <: Real}
+    function KalmanFilter(init_state::GaussianStateStochasticProcess{Z}, n_X, n_Y) where {Z <: Real}
         new{Z}(init_state, KalmanFilterState(init_state, n_X, n_Y))
+    end
+
+    """Test new constructor"""
+    function KalmanFilter{K}(init_state::GaussianStateStochasticProcess, n_X, n_Y) where {K <: Real}
+        new{K}(init_state, KalmanFilterState{K}(init_state, n_X, n_Y))
     end
 
     """
@@ -56,9 +76,8 @@ mutable struct KalmanFilter{Z <: Real} <: AbstractGaussianDeterministicFilter
         new{Z}(gaussian_init_state, KalmanFilterState(gaussian_init_state, n_X, n_Y))
     end
 
-    function KalmanFilter(model::ForecastingModel{Z, T,
-            S}) where {Z <: Real, T <: AbstractStateSpaceSystem, S <: AbstractState{Z}}
-        return KalmanFilter(model.current_state, model.system.n_X, model.system.n_Y)
+    function KalmanFilter(model::ForecastingModel{Z, T, S}; type=Z) where {Z <: Real, T <: AbstractStateSpaceSystem, S <: AbstractState{Z}}
+        return KalmanFilter{type}(model.current_state, model.system.n_X, model.system.n_Y)
     end
 end
 
@@ -68,11 +87,11 @@ mutable struct KalmanFilterOutput{Z <: Real} <: AbstractGaussianFilterOutput{Z}
     predicted_state::TimeSeries{Z, GaussianStateStochasticProcess{Z}}
     filtered_state::TimeSeries{Z, GaussianStateStochasticProcess{Z}}
 
-    K::Vector{Matrix{Z}}  #Array{Array{Float64, 2}, 1}
-    M::Vector{Matrix{Z}}  #Array{Array{Float64, 2}, 1}
-    L::Vector{Matrix{Z}}  #Array{Array{Float64, 2}, 1}
-    S::Vector{Matrix{Z}}  #Array{Array{Float64, 2}, 1}
-    v::Vector{Vector{Z}}  #Array{Array{Float64, 1}, 1}
+    K::Vector{Matrix{Z}}
+    M::Vector{Matrix{Z}}
+    L::Vector{Matrix{Z}}
+    S::Vector{Matrix{Z}}
+    v::Vector{Vector{Z}}
 
     llk::Z
 
@@ -133,13 +152,13 @@ function filtering!(
 
         # Get current matrix A, B, H and Q
         ex = exogenous_data[t, :]
-        A = sys.A_t(ex, parameters, t_step)
-        B = sys.B_t(ex, parameters, t_step)
-        c = sys.c_t(ex, parameters, t_step)
-        H = sys.H_t(ex, parameters, t_step)
-        d = sys.d_t(ex, parameters, t_step)
-        R = sys.R_t(ex, parameters, t_step)
-        Q = sys.Q_t(ex, parameters, t_step)
+        A = sys.A_t(ex, parameters, t_step)::Matrix{Z}
+        B = sys.B_t(ex, parameters, t_step)::Matrix{Z}
+        c = sys.c_t(ex, parameters, t_step)::Vector{Z}
+        H = sys.H_t(ex, parameters, t_step)::Matrix{Z}
+        d = sys.d_t(ex, parameters, t_step)::Vector{Z}
+        R = sys.R_t(ex, parameters, t_step)::Matrix{Z}
+        Q = sys.Q_t(ex, parameters, t_step)::Matrix{Z}
 
         update_filter_state!(
             filter_method.state,
@@ -163,7 +182,7 @@ end
 # KF for optimization
 function filtering!(
         sys::GaussianLinearStateSpaceSystem{Z},
-        filter_method::KalmanFilter{Z},
+        filter_method::KalmanFilter{D},
         observation_data::Matrix{Z},
         exogenous_data::Matrix{Z},
         control_data::Matrix{Z},
@@ -203,9 +222,7 @@ function filtering!(
     return filter_method.state.llk / n_obs
 end
 
-function update_filter_state!(kalman_state::KalmanFilterState{Z}, y::StridedVector{Z},
-        u::StridedVector{Z}, A::Matrix{Z}, B::Matrix{Z}, c::Vector{Z},
-        H::Matrix{Z}, d::Vector{Z}, R::Matrix{Z}, Q::Matrix{Z}) where {Z <: Real}
+function update_filter_state!(kalman_state::KalmanFilterState{Z}, y, u, A, B, c , H, d, R, Q) where {Z <: Real}
 
     # Check the number of correct observations
     ivar_obs = findall(.!isnan.(y))
