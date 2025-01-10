@@ -1,117 +1,118 @@
-using LinearAlgebra
-
-
-mutable struct EnsembleKalmanSmootherState
+mutable struct EnsembleKalmanSmootherState{Z <: Real} <: AbstractSmootherState{Z}
 
     # Filtered and predicted state
-    smoothed_particles_swarm
+    smoothed_particles_swarm::Matrix{Z}
 
-    function EnsembleKalmanSmootherState(n_X, n_Y, n_particles)
-        
-        new(zeros(Float64, n_X, n_particles))
-
+    function EnsembleKalmanSmootherState{Z}(n_X, n_particles) where {Z <: Real}
+        new{Z}(zeros(Z, n_X, n_particles))
     end
-
 end
 
+mutable struct EnsembleKalmanSmoother{Z <: Real} <: AbstractStochasticMonteCarloSmoother{Z}
+    state::EnsembleKalmanSmootherState{Z}
+    n_particles::Int
 
-mutable struct EnsembleKalmanSmoother <: AbstractSmoother
-
-    n_particles::Int64
-    smoother_state::EnsembleKalmanSmootherState
-
-    function EnsembleKalmanSmoother(n_X, n_Y, n_particles)
-
-        new(n_particles, EnsembleKalmanSmootherState(n_X, n_Y, n_particles))
-
+    function EnsembleKalmanSmoother{Z}(n_X, n_particles) where {Z <: Real}
+        new{Z}(EnsembleKalmanSmootherState{Z}(n_X, n_particles), n_particles)
     end
 
-    function EnsembleKalmanSmoother(model::ForecastingModel; n_particles=30)
-
-        new(n_particles, EnsembleKalmanSmootherState(model.system.n_X, model.system.n_Y, n_particles))
-
+    function EnsembleKalmanSmoother(
+            model::ForecastingModel{Z}; n_particles = 30) where {Z <: Real}
+        return EnsembleKalmanSmoother{Z}(model.system.n_X, n_particles)
     end
-
 end
 
+mutable struct EnsembleKalmanSmootherOutput{Z <: Real} <:
+               AbstractStochasticMonteCarloSmootherOutput{Z}
+    smoothed_particles_swarm::TimeSeries{Z, ParticleSwarmState{Z}}
 
-mutable struct EnsembleKalmanSmootherOutput <: SmootherOutput
-
-    smoothed_state::TimeSeries{ParticleSwarmState}
-
-    function EnsembleKalmanSmootherOutput(model::ForecastingModel, y_t, n_particles)
-
+    function EnsembleKalmanSmootherOutput(
+            model::ForecastingModel{Z}, y_t, n_particles) where {Z <: Real}
         n_obs = size(y_t, 1)
 
-        t_index = [model.current_state.t + (model.system.dt)*(t-1) for t in 1:(n_obs+1)]
+        t_index = [model.current_state.t + (model.system.dt) * (t - 1)
+                   for t in 1:(n_obs + 1)]
 
-        smoothed_particles_swarm = TimeSeries{ParticleSwarmState}(n_obs+1, model.system.n_X, t_index; n_particles=n_particles)
+        smoothed_particles_swarm = TimeSeries{Z, ParticleSwarmState{Z}}(
+            t_index,
+            n_obs + 1,
+            model.system.n_X;
+            n_particles = n_particles
+        )
 
-        return new(smoothed_particles_swarm)
-
+        return new{Z}(smoothed_particles_swarm)
     end
-
 end
 
-
-function get_smoother_output(smoother::EnsembleKalmanSmoother, model, y_t)
-
-    return EnsembleKalmanSmootherOutput(model, y_t, smoother.n_particles)
-
+function get_smoother_output(
+        smoother_method::EnsembleKalmanSmoother, model::ForecastingModel, observation_data)
+    return EnsembleKalmanSmootherOutput(
+        model, observation_data, smoother_method.n_particles)
 end
 
+function smoothing!(
+        smoother_output::EnsembleKalmanSmootherOutput{Z},
+        filter_output::EnsembleKalmanFilterOutput{Z},
+        sys::S,
+        smoother_method::EnsembleKalmanSmoother,
+        observation_data,
+        exogenous_data,
+        control_data,
+        parameters
+) where {Z <: Real, S <: AbstractStateSpaceSystem{Z}}
+    n_obs = size(observation_data, 1)
 
-function smoother!(smoother_output::EnsembleKalmanSmootherOutput, filter_output::EnsembleKalmanFilterOutput, sys::StateSpaceSystem, smoother::EnsembleKalmanSmoother, y_t, exogenous_variables, control_variables, parameters)
+    initialize_smoother!(
+        smoother_output,
+        smoother_method.state,
+        filter_output.predicted_particles_swarm[end]
+    )
 
-    n_obs = size(y_t, 1)
-
-    initialize_smoother!(smoother_output, smoother.smoother_state, filter_output.predicted_particles_swarm[end])
+    t_step_table = collect(range(
+        filter_output.predicted_particles_swarm[1].t, length = n_obs, step = sys.dt))
 
     # Backward recursions
-    @inbounds for t in (n_obs):-1:1
+    @inbounds for (t, t_step) in Iterators.reverse(enumerate(t_step_table))
 
-        # Get current t_step
-        t_step = filter_output.predicted_particles_swarm[1].t + (t-1)*sys.dt
+        update_smoother_state!(smoother_method.state,
+            filter_output.predicted_particles_swarm[t + 1].particles_state,
+            filter_output.filtered_particles_swarm[t].particles_state)
 
-        Xp = filter_output.predicted_particles_swarm[t+1].particles_state
-        Xf = filter_output.filtered_particles_swarm[t].particles_state
-
-        update_smoother_state!(smoother.smoother_state, Xp, Xf)
-
-        save_state_in_smoother_output!(smoother_output, smoother.smoother_state, t)
-
+        save_state_in_smoother_output!(smoother_output, smoother_method.state, t)
     end
 
     return smoother_output
-
 end
-
 
 function update_smoother_state!(smoother_state, Xp, Xf)
+    Paf = cov(Xf, Xp, dims = 2)
+    Pff = cov(Xp, Xp, dims = 2)
+    K = Paf * pinv(Pff)
 
-    Paf = cov(Xf, Xp, dims=2)
-    Pff = cov(Xp, Xp, dims=2)
-    K = Paf*pinv(Pff)
-
-    smoother_state.smoothed_particles_swarm = Xf + K*(smoother_state.smoothed_particles_swarm - Xp)
-
+    smoother_state.smoothed_particles_swarm = Xf +
+                                              K *
+                                              (smoother_state.smoothed_particles_swarm - Xp)
 end
 
-
-function save_state_in_smoother_output!(smoother_output::EnsembleKalmanSmootherOutput, smoother_state::EnsembleKalmanSmootherState, t::Int64)
+function save_state_in_smoother_output!(
+        smoother_output::EnsembleKalmanSmootherOutput{Z},
+        smoother_state::EnsembleKalmanSmootherState{Z},
+        t::Int
+) where {Z <: Real}
 
     # Save smoothed state
-    smoother_output.smoothed_state[t].particles_state = smoother_state.smoothed_particles_swarm
-
+    smoother_output.smoothed_particles_swarm[t].particles_state = smoother_state.smoothed_particles_swarm
 end
 
-
-function initialize_smoother!(smoother_output::EnsembleKalmanSmootherOutput, smoother_state::EnsembleKalmanSmootherState, last_predicted_state)
+function initialize_smoother!(
+        smoother_output::EnsembleKalmanSmootherOutput{Z},
+        smoother_state::EnsembleKalmanSmootherState{Z},
+        last_predicted_state
+) where {Z <: Real}
 
     # Initialize KalmanSmoother state
     smoother_state.smoothed_particles_swarm = last_predicted_state.particles_state
 
     # Save initial predicted state
-    smoother_output.smoothed_state[end].particles_state = last_predicted_state.particles_state
-
+    smoother_output.smoothed_particles_swarm[end].particles_state = last_predicted_state.particles_state
 end

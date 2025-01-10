@@ -1,6 +1,6 @@
 using LinearAlgebra
 
-mutable struct KalmanSmootherState{Z} <: AbstractFilterState{Z}
+mutable struct KalmanSmootherState{Z} <: AbstractSmootherState{Z}
 
     # Filtered and predicted state
     smoothed_state_μ::Vector{Z}

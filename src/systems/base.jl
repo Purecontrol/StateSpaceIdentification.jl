@@ -1,5 +1,5 @@
-MatOrFun = Union{Matrix, Function}
-VecOrFun = Union{Vector, Function}
+MatOrFun = Union{AbstractMatrix, Function}
+VecOrFun = Union{AbstractVector, Function}
 """
 $(TYPEDEF)
 

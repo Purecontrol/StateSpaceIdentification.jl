@@ -14,7 +14,7 @@ $(TYPEDEF)
 $(TYPEDFIELDS)
 
 """
-mutable struct GaussianLinearStateSpaceSystem{Z <: Real} <:
+struct GaussianLinearStateSpaceSystem{Z <: Real} <:
                AbstractLinearStateSpaceSystem{Z}
 
     # General components of gaussian linear state space systems 
@@ -42,7 +42,7 @@ mutable struct GaussianLinearStateSpaceSystem{Z <: Real} <:
 
     """Constructor with full arguments."""
     function GaussianLinearStateSpaceSystem{T}(
-            A_t, B_t, c_t, H_t, d_t, R_t, Q_t, n_X, n_Y, dt) where {T <: Real}
+            A_t::AbstractMatrixProvider{T}, B_t::AbstractMatrixProvider{T}, c_t::AbstractVectorProvider{T}, H_t::AbstractMatrixProvider{T}, d_t::AbstractVectorProvider{T}, R_t::AbstractMatrixProvider{T}, Q_t::AbstractMatrixProvider{T}, n_X, n_Y, dt) where {T <: Real}
         return new{T}(A_t, B_t, c_t, H_t, d_t, R_t, Q_t, n_X, n_Y, dt)
     end
 
@@ -52,13 +52,13 @@ mutable struct GaussianLinearStateSpaceSystem{Z <: Real} <:
             d_t::VecOrFun, R_t::MatOrFun, Q_t::MatOrFun, n_X, n_Y, dt) where {T <: Real}
 
             # Convert types
-            A_t = isa(A_t, Matrix) ? StaticMatrix{T}(A_t) : DynamicMatrix{T}(A_t)
-            B_t = isa(B_t, Matrix) ? StaticMatrix{T}(B_t) : DynamicMatrix{T}(B_t)
-            c_t = isa(c_t, Vector) ? StaticVector{T}(c_t) : DynamicVector{T}(c_t)
-            H_t = isa(H_t, Matrix) ? StaticMatrix{T}(H_t) : DynamicMatrix{T}(H_t)
-            d_t = isa(d_t, Vector) ? StaticVector{T}(d_t) : DynamicVector{T}(d_t)
-            R_t = isa(R_t, Matrix) ? StaticMatrix{T}(R_t) : DynamicMatrix{T}(R_t)
-            Q_t = isa(Q_t, Matrix) ? StaticMatrix{T}(Q_t) : DynamicMatrix{T}(Q_t)
+            A_t = isa(A_t, AbstractMatrix) ? StaticMatrix(A_t) : DynamicMatrix{T}(A_t)
+            B_t = isa(B_t, AbstractMatrix) ? StaticMatrix(B_t) : DynamicMatrix{T}(B_t)
+            c_t = isa(c_t, AbstractVector) ? StaticVector(c_t) : DynamicVector{T}(c_t)
+            H_t = isa(H_t, AbstractMatrix) ? StaticMatrix(H_t) : DynamicMatrix{T}(H_t)
+            d_t = isa(d_t, AbstractVector) ? StaticVector(d_t) : DynamicVector{T}(d_t)
+            R_t = isa(R_t, AbstractMatrix) ? StaticMatrix(R_t) : DynamicMatrix{T}(R_t)
+            Q_t = isa(Q_t, AbstractMatrix) ? StaticMatrix(Q_t) : DynamicMatrix{T}(Q_t)
 
         return new{T}(A_t, B_t, c_t, H_t, d_t, R_t, Q_t, n_X, n_Y, dt)
     end

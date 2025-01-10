@@ -278,7 +278,7 @@ Define `call` operator for NonLinearProvider.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::NonLinearProvider{Z})(x, exogenous::Vector{Z}, u, params, t) where {Z <: Real}
+@inline function (A::NonLinearProvider{Z})(x, exogenous, u, params, t) where {Z <: Real}
     return A.func(x, exogenous, u, params, t)
 end
 

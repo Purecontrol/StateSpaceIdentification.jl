@@ -1,3 +1,5 @@
+const POSITIVE_PRECISION = 10e-3
+
 """
 $(TYPEDEF)
 

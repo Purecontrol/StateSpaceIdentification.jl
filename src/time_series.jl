@@ -169,7 +169,7 @@ mutable struct ParticleSwarmState{T <: Real} <: AbstractState{T}
 
     """Constructor with number of states and timestep value."""
     function ParticleSwarmState{Z}(
-            k::Integer, t::Real; n_particles::Integer = 10, kwargs...) where {Z <: Real}
+        t::Real, k::Integer; n_particles::Integer = 10, kwargs...) where {Z <: Real}
         return new{Z}(t, zeros(Z, k, n_particles))
     end
 end
