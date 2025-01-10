@@ -154,8 +154,12 @@ $(TYPEDEF)
 
 StaticMatrix is a subtype of AbstractMatrixProvider containing Matrix{Z}.
 """
-struct StaticMatrix{Z <: Real} <: AbstractMatrixProvider{Z}
-    value::Matrix{Z}
+struct StaticMatrix{Z <: Real, P <: AbstractMatrix{Z}} <: AbstractMatrixProvider{Z}
+    value::P
+
+    function StaticMatrix(m::P) where {Z <: Real, P <:AbstractMatrix{Z}}
+        return new{Z, P}(m)
+    end
 end
 
 """
@@ -163,8 +167,12 @@ $(TYPEDEF)
 
 StaticVector is a subtype of AbstractVectorProvider containing Vector{Z}.
 """
-struct StaticVector{Z <: Real} <: AbstractVectorProvider{Z}
-    value::Vector{Z}
+struct StaticVector{Z <: Real, P <: AbstractVector{Z}} <: AbstractVectorProvider{Z}
+    value::P
+
+    function StaticVector(m::P) where {Z <: Real, P <:AbstractVector{Z}}
+        return new{Z, P}(m)
+    end
 end
 
 """
@@ -209,23 +217,23 @@ struct NonLinearProvider{Z <: Real} <: AbstractProvider{Z}
     # end
 end
 
-"""
-Define `call` operator for LinearAbstractProvider with exogenous parameters as view.
+# """
+# Define `call` operator for LinearAbstractProvider with exogenous parameters as view.
 
-$(TYPEDSIGNATURES)
-"""
-@inline function (A::LinearAbstractProvider{Z})(
-        exogenous::SubArray{Z}, params, t) where {Z <: Real}
-    return A(copy(exogenous), params, t)
-end
+# $(TYPEDSIGNATURES)
+# """
+# @inline function (A::LinearAbstractProvider{Z})(
+#         exogenous::SubArray{Z}, params, t) where {Z <: Real}
+#     return A(exogenous, params, t)
+# end
 
 """
 Define `call` operator for StaticMatrix.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::StaticMatrix{Z})(exogenous::Vector{Z}, params, t)::Matrix{Z} where {Z <: Real}
-    return A.value
+@inline function (A::StaticMatrix{Z, P})(exogenous, params, t)::P where {Z <: Real, P <: AbstractMatrix{Z}}
+    return A.value::P
 end
 
 """
@@ -233,8 +241,8 @@ Define `call` operator for StaticVector.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::StaticVector{Z})(exogenous::Vector{Z}, params, t)::Vector{Z} where {Z <: Real}
-    return A.value
+@inline function (A::StaticVector{Z, P})(exogenous, params, t)::P where {Z <: Real, P <: AbstractVector{Z}}
+    return A.value::P
 end
 
 """
@@ -242,7 +250,7 @@ Define `call` operator for DynamicMatrix.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::DynamicMatrix{Z})(exogenous::Vector{Z}, params::Vector{D}, t::D)::Matrix{D} where {Z <: Real, D <: Real}
+@inline function (A::DynamicMatrix)(exogenous, params, t)# where {Z <: Real, D <: Real}
     return A.func(exogenous, params, t)
 end
 
@@ -251,7 +259,7 @@ Define `call` operator for DynamicVector.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::DynamicVector{Z})(exogenous::Vector{Z}, params::Vector{D}, t::D)::Vector{D} where {Z <: Real, D <: Real}
+@inline function (A::DynamicVector)(exogenous, params, t)# where {Z <: Real, D <: Real}
     return A.func(exogenous, params, t)
 end
 

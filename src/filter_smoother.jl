@@ -132,15 +132,15 @@ Call the smoothing process of the choosen method on the provided data (``observa
 and ``control_data``) and the ``model`` using a previous output from a filtering process ``filter_output``.
 """
 function smoothing(
-        model::ForecastingModel,
-        observation_data,
-        exogenous_data,
-        control_data,
-        filter_output::AbstractFilterOutput;
-        smoother_method::AbstractSmoother = default_smoother(model),
-        parameters = model.parameters
-)
-    smoother_output = get_smoother_output(smoother_method, model, observation_data)::AbstractSmootherOutput
+        model::ForecastingModel{Z},
+        observation_data::Matrix{Z},
+        exogenous_data::Matrix{Z},
+        control_data::Matrix{Z},
+        filter_output::AbstractFilterOutput{Z};
+        smoother_method::AbstractSmoother{Z} = default_smoother(model),
+        parameters::Vector{Z} = model.parameters
+) where {Z <: Real}
+    smoother_output = get_smoother_output(smoother_method, model, observation_data)
 
     return smoothing!(
         smoother_output,

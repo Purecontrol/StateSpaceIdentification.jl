@@ -152,13 +152,13 @@ function filtering!(
 
         # Get current matrix A, B, H and Q
         ex = exogenous_data[t, :]
-        A = sys.A_t(ex, parameters, t_step)::Matrix{Z}
-        B = sys.B_t(ex, parameters, t_step)::Matrix{Z}
-        c = sys.c_t(ex, parameters, t_step)::Vector{Z}
-        H = sys.H_t(ex, parameters, t_step)::Matrix{Z}
-        d = sys.d_t(ex, parameters, t_step)::Vector{Z}
-        R = sys.R_t(ex, parameters, t_step)::Matrix{Z}
-        Q = sys.Q_t(ex, parameters, t_step)::Matrix{Z}
+        A = sys.A_t(ex, parameters, t_step)#::AbstractMatrix{Z}
+        B = sys.B_t(ex, parameters, t_step)#::AbstractMatrix{Z}
+        c = sys.c_t(ex, parameters, t_step)#::AbstractVector{Z}
+        H = sys.H_t(ex, parameters, t_step)#::AbstractMatrix{Z}
+        d = sys.d_t(ex, parameters, t_step)#::AbstractVector{Z}
+        R = sys.R_t(ex, parameters, t_step)#::AbstractMatrix{Z}
+        Q = sys.Q_t(ex, parameters, t_step)#::AbstractMatrix{Z}
 
         update_filter_state!(
             filter_method.state,

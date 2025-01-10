@@ -11,7 +11,7 @@ is a state-space model, and given `N` data points, the smoother computes:
 Each smoother has its own methods for computing the distribution described above and most of the times, it is
 based on the output of a filter.
 """
-abstract type AbstractSmoother end
+abstract type AbstractSmoother{Z <: Real} end
 
 """
 $(TYPEDEF)
@@ -49,15 +49,15 @@ $(TYPEDSIGNATURES)
 Abstract ``smoothing!(so::AbstractSmootherOutput, fo::AbstractFilterOutput, sys::AbstractStateSpaceSystem, s::AbstractSmoother, ...)`` function that has to be defined for all subtypes of AbstractSmoother.
 """
 function smoothing!(
-        smoother_output::AbstractSmootherOutput,
-        filter_output::AbstractFilterOutput,
-        sys::AbstractStateSpaceSystem,
-        smoother_method::S,
+        smoother_output::AbstractSmootherOutput{Z},
+        filter_output::AbstractFilterOutput{Z},
+        sys::AbstractStateSpaceSystem{Z},
+        smoother_method::AbstractSmoother{Z},
         observation_data,
         exogenous_data,
         control_data,
         parameters
-) where {S <: AbstractSmoother}
+) where {Z <: Real}
     return error("The function `smoothing!(so::AbstractSmootherOutput, fo::AbstractFilterOutput, sys::AbstractStateSpaceSystem, s::AbstractSmoother, ...)` has to be defined for subtype of AbstractSmoother.")
 end
 
@@ -72,7 +72,7 @@ $(TYPEDEF)
 directly determining the parameters of the distribution. For example, if the distribution is a Gaussian,
 the smoother computes estimates of the mean (`\\mu`) and variance (`\\sigma^2`), which fully characterize the distribution.
 """
-abstract type AbstractDeterministicSmoother <: AbstractSmoother end
+abstract type AbstractDeterministicSmoother{Z <: Real} <: AbstractSmoother{Z} end
 
 """
 $(TYPEDEF)
@@ -80,7 +80,7 @@ $(TYPEDEF)
 `AbstractGaussianDeterministicSmoother` is a subtype of `AbstractDeterministicSmoother` designed for target distributions that are
 Gaussian. The output distributions are `TimeSeries` of `GaussianStateStochasticProcess`.
 """
-abstract type AbstractGaussianDeterministicSmoother <: AbstractDeterministicSmoother end
+abstract type AbstractGaussianDeterministicSmoother{Z <: Real} <: AbstractDeterministicSmoother{Z} end
 
 """
 $(TYPEDEF)
@@ -88,7 +88,7 @@ $(TYPEDEF)
 `AbstractGaussianSmootherOutput` is a subtype of `AbstractSmootherOutput` to store the outputs of 
 `AbstractGaussianDeterministicSmoother`.
 """
-abstract type AbstractGaussianSmootherOutput{Z} <: AbstractSmootherOutput{Z} end
+abstract type AbstractGaussianSmootherOutput{Z <: Real} <: AbstractSmootherOutput{Z} end
 
 #################################################################################################
 # Stochastic Smoothers
@@ -100,7 +100,7 @@ $(TYPEDEF)
 `AbstractSimulationBasedSmoother` is a subtype of `AbstractSmoother` for smoothers that approximate the distribution using 
 samples. At each timestep, the distribution is approximated using a sample of `n_particles` particles.
 """
-abstract type AbstractSimulationBasedSmoother <: AbstractSmoother end
+abstract type AbstractSimulationBasedSmoother{Z <: Real} <: AbstractSmoother{Z} end
 
 """
 $(TYPEDEF)
@@ -108,7 +108,7 @@ $(TYPEDEF)
 `AbstractStochasticMonteCarloSmoother` is a subtype of `AbstractSimulationBasedSmoother` where the sampling uses Sequential Monte Carlo
 methods.
 """
-abstract type AbstractStochasticMonteCarloSmoother <: AbstractSimulationBasedSmoother end
+abstract type AbstractStochasticMonteCarloSmoother{Z <: Real} <: AbstractSimulationBasedSmoother{Z} end
 
 """
 $(TYPEDEF)
@@ -116,4 +116,4 @@ $(TYPEDEF)
 `AbstractStochasticMonteCarloSmootherOutput` is a subtype of `AbstractSmootherOutput` to store the outputs of 
 `AbstractStochasticMonteCarloSmoother`.
 """
-abstract type AbstractStochasticMonteCarloSmootherOutput{Z} <: AbstractSmootherOutput{Z} end
+abstract type AbstractStochasticMonteCarloSmootherOutput{Z <: Real} <: AbstractSmootherOutput{Z} end
