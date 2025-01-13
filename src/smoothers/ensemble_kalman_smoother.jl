@@ -84,7 +84,7 @@ function smoothing!(
     return smoother_output
 end
 
-function update_smoother_state!(smoother_state, Xp, Xf)
+function update_smoother_state!(smoother_state::EnsembleKalmanSmootherState{Z}, Xp, Xf) where {Z <: Real}
     Paf = cov(Xf, Xp, dims = 2)
     Pff = cov(Xp, Xp, dims = 2)
     K = Paf * pinv(Pff)

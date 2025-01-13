@@ -21,18 +21,14 @@ include("filter_smoother.jl")
 include("filters/kalman_filter.jl")
 include("filters/ensemble_kalman_filter.jl")
 include("filters/extended_kalman_filter.jl")
-include("filters/particle_filter.jl")
+include("filters/particle_filters.jl")
 
 include("smoothers/kalman_smoother.jl")
 include("smoothers/ensemble_kalman_smoother.jl")
 include("smoothers/extended_kalman_smoother.jl")
-# include("smoothers/ancestor_tracking_smoother.jl")
-# include("smoothers/backward_simulation_smoother.jl")
+include("smoothers/particle_smoothers.jl")
 
 include("fit.jl")
-
-# export time_series, models, fit, filter_smoother
-
 
 
 export GaussianStateStochasticProcess, ParticleSwarmState, TimeSeries
@@ -42,21 +38,7 @@ export filtering, update, update!, smoothing, filtering_and_smoothing
 export KalmanFilter, KalmanSmoother
 export EnsembleKalmanFilter, EnsembleKalmanSmoother
 export ExtendedKalmanFilter, ExtendedKalmanSmoother
-export ParticleFilter, ConditionalParticleFilter
-export ExpectationMaximization
+export ParticleFilter, ConditionalParticleFilter, AncestorTrackingSmoother, BackwardSimulationSmoother
+export ExpectationMaximization, numerical_MLE #better to have only one fit function
 
-
-
-export numerical_MLE, EM, EM_EnKS, SEM, SEM_CPF, npSEM_CPF, LLR
-
-###### DEV IMPORT : TO STANDARDIZE #######
-export EM_EnKS2
-
-export k_choice
-
-export EnsembleKalmanFilter, KalmanFilter, ParticleFilter, ConditionalParticleFilter
-export KalmanSmoother,
-       EnsembleKalmanSmoother, BackwardSimulationSmoother, AncestorTrackingSmoother
-
-
-end # module StateSpaceIdentification
+end
