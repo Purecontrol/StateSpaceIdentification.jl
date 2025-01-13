@@ -209,13 +209,24 @@ $(TYPEDEF)
 NonLinearProvider is a subtype of AbstractProvider containing NonLinearMatorVecFunction{Z} 
 for provider expressing non linear relations with respect to x and u.
 """
-struct NonLinearProvider{Z <: Real} <: AbstractProvider{Z}
+abstract type AbstractNonLinearProvider{Z <: Real} <: AbstractProvider{Z} end
+
+struct TransitionNonLinearProvider{Z <: Real} <: AbstractNonLinearProvider{Z}
     func::Function #NonLinearMatorVecFunction{Z}
 
-    # function NonLinearProvider{Z}(f::Function) where {Z <: Real}
+    # function TransitionNonLinearProvider{Z}(f::Function) where {Z <: Real}
     #     new{Z}(NonLinearMatorVecFunction{Z}(f))
     # end
 end
+
+struct ObservationNonLinearProvider{Z <: Real} <: AbstractNonLinearProvider{Z}
+    func::Function #NonLinearMatorVecFunction{Z}
+
+    # function ObservationNonLinearProvider{Z}(f::Function) where {Z <: Real}
+    #     new{Z}(NonLinearMatorVecFunction{Z}(f))
+    # end
+end
+
 
 # """
 # Define `call` operator for LinearAbstractProvider with exogenous parameters as view.
@@ -268,18 +279,23 @@ Define `call` operator for NonLinearProvider with exogenous parameters as view.
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::NonLinearProvider{Z})(
+@inline function (A::TransitionNonLinearProvider{Z})(
         x, exogenous::SubArray{Z}, u, params, t) where {Z <: Real}
     return A(x, copy(exogenous), u, params, t)
 end
 
 """
-Define `call` operator for NonLinearProvider.
+Define `call` operator for NonLinearProvider (Transition Operator).
 
 $(TYPEDSIGNATURES)
 """
-@inline function (A::NonLinearProvider{Z})(x, exogenous, u, params, t) where {Z <: Real}
+@inline function (A::TransitionNonLinearProvider{Z})(x, exogenous, u, params, t) where {Z <: Real}
     return A.func(x, exogenous, u, params, t)
+end
+
+"""Observation operator."""
+@inline function (A::ObservationNonLinearProvider{Z})(x, exogenous, params, t) where {Z <: Real}
+    return A.func(x, exogenous, params, t)
 end
 
 function _promote(args...)

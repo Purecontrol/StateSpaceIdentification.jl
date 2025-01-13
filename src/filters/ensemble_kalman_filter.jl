@@ -157,6 +157,9 @@ function filtering!(
     t_step_table = collect(range(
         filter_method.init_state_x.t, length = n_obs, step = sys.dt))
 
+    n_particles = filter_method.n_particles
+    T_M = (Matrix(I, n_particles, n_particles) .- 1 / n_particles)
+
     @inbounds for (t, t_step) in enumerate(t_step_table)
 
         # Get current noise matrix R, Q
@@ -175,7 +178,8 @@ function filtering!(
             H,
             R,
             Q,
-            filter_method.n_particles,
+            T_M,
+            n_particles,
             filter_method.positive
         )
 
@@ -242,6 +246,7 @@ function update_filter_state!(
         H,
         R,
         Q,
+        T_M,
         n_particles,
         positive
 ) where {Z <: Real}
@@ -255,10 +260,8 @@ function update_filter_state!(
 
     # Approximation of Var(H(x)) and Cov(x, v)
     if !isempty(ivar_obs)
-        ef_states = filter_state.predicted_particles_swarm *
-                    (Matrix(I, n_particles, n_particles) .- 1 / n_particles)
-        ef_obs = filter_state.observed_particles_swarm *
-                 (Matrix(I, n_particles, n_particles) .- 1 / n_particles)
+        ef_states = filter_state.predicted_particles_swarm * T_M
+        ef_obs = filter_state.observed_particles_swarm * T_M
         HPHt = (ef_obs * ef_obs') ./ (n_particles - 1) # Approximation of Var(H(x))
         PHt = ((ef_states * ef_obs') ./ (n_particles - 1)) # Approximation of Cov(x, v)
 

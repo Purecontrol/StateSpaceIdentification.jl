@@ -60,7 +60,7 @@ mutable struct KalmanFilter{Z <: Real} <: AbstractGaussianDeterministicFilter{Z}
         new{Z}(init_state, KalmanFilterState(init_state, n_X, n_Y))
     end
 
-    """Test new constructor"""
+    """Constructor with given type K."""
     function KalmanFilter{K}(init_state::GaussianStateStochasticProcess, n_X, n_Y) where {K <: Real}
         new{K}(init_state, KalmanFilterState{K}(init_state, n_X, n_Y))
     end

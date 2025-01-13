@@ -20,11 +20,13 @@ include("filter_smoother.jl")
 
 include("filters/kalman_filter.jl")
 include("filters/ensemble_kalman_filter.jl")
+include("filters/extended_kalman_filter.jl")
 # include("filters/particle_filter.jl")
 # include("filters/conditional_particle_filter.jl")
 
 include("smoothers/kalman_smoother.jl")
 include("smoothers/ensemble_kalman_smoother.jl")
+include("smoothers/extended_kalman_smoother.jl")
 # include("smoothers/ancestor_tracking_smoother.jl")
 # include("smoothers/backward_simulation_smoother.jl")
 
@@ -40,6 +42,7 @@ export GaussianLinearStateSpaceSystem, GaussianNonLinearStateSpaceSystem
 export filtering, update, update!, smoothing, filtering_and_smoothing
 export KalmanFilter, KalmanSmoother
 export EnsembleKalmanFilter, EnsembleKalmanSmoother
+export ExtendedKalmanFilter, ExtendedKalmanSmoother
 export ExpectationMaximization
 
 

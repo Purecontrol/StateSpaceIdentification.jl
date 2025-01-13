@@ -20,9 +20,9 @@ mutable struct GaussianNonLinearStateSpaceSystem{Z <: Real} <: AbstractNonLinear
 
     # General components of gaussian non linear state space systems
     """Provider ``M_t`` which is a ``n_X -> n_X`` function."""
-    M_t::NonLinearProvider{Z}
+    M_t::TransitionNonLinearProvider{Z}
     """Provider ``H_t`` which is a ``n_X -> n_Y`` function."""
-    H_t::NonLinearProvider{Z}
+    H_t::ObservationNonLinearProvider{Z}
     """Provider ``R_t`` returning a ``n_X \\times n_X`` matrix."""
     R_t::AbstractMatrixProvider{Z}
     """Provider ``Q_t`` returning a ``n_Y \\times n_Y`` matrix."""
@@ -41,11 +41,11 @@ mutable struct GaussianNonLinearStateSpaceSystem{Z <: Real} <: AbstractNonLinear
     end
 
     """Constructor with Type conversion."""
-    function GaussianNonLinearStateSpaceSystem{Z}(M_t::Union{Function, NonLinearProvider{Z}}, H_t::Union{Function, NonLinearProvider{Z}}, R_t::Union{MatOrFun, AbstractMatrixProvider{Z}}, Q_t::Union{MatOrFun, AbstractMatrixProvider{Z}}, n_X, n_Y, dt) where {Z <: Real}
+    function GaussianNonLinearStateSpaceSystem{Z}(M_t::Union{Function, TransitionNonLinearProvider{Z}}, H_t::Union{Function, ObservationNonLinearProvider{Z}}, R_t::Union{MatOrFun, AbstractMatrixProvider{Z}}, Q_t::Union{MatOrFun, AbstractMatrixProvider{Z}}, n_X, n_Y, dt) where {Z <: Real}
 
             # Convert types
-            M_t = isa(M_t, NonLinearProvider) ? M_t : NonLinearProvider{Z}(M_t)
-            H_t = isa(H_t, NonLinearProvider) ? H_t : NonLinearProvider{Z}(H_t)
+            M_t = isa(M_t, TransitionNonLinearProvider) ? M_t : TransitionNonLinearProvider{Z}(M_t)
+            H_t = isa(H_t, ObservationNonLinearProvider) ? H_t : ObservationNonLinearProvider{Z}(H_t)
             R_t = isa(R_t, AbstractMatrixProvider) ? R_t : (isa(R_t, Matrix) ? StaticMatrix{Z}(R_t) : DynamicMatrix{Z}(R_t))
             Q_t = isa(Q_t, AbstractMatrixProvider) ? Q_t : (isa(Q_t, Matrix) ? StaticMatrix{Z}(Q_t) : DynamicMatrix{Z}(Q_t))
 
