@@ -43,46 +43,209 @@ function numerical_MLE(
     return sol
 end
 
-# QFunction structure
-struct QFunction
-    fun::FunctionWrapper{Real, Tuple{Vector, Matrix, Array, Array}}
-    smoothed_state_μ::Matrix
-    smoothed_state_Σ::Array
-    smoothed_autocov::Array
-end
+# # QFunction structure
+# struct QFunction
+#     fun::FunctionWrapper{Real, Tuple{Vector, Matrix, Array, Array}}
+#     smoothed_state_μ::Matrix
+#     smoothed_state_Σ::Array
+#     smoothed_autocov::Array
+# end
 
-# Evaluate Q function
-function evaluate_strfun(parameters, fun::QFunction) where {Z <: Real, T <: Real}
-    return fun.fun(parameters, fun.smoothed_state_μ, fun.smoothed_state_Σ, fun.smoothed_autocov)
-end
+# # Evaluate Q function
+# function evaluate_strfun(parameters, fun::QFunction) where {Z <: Real, T <: Real}
+#     return fun.fun(parameters, fun.smoothed_state_μ, fun.smoothed_state_Σ, fun.smoothed_autocov)
+# end
 
-# Expectation-Maximization algorithm
+# # Expectation-Maximization algorithm
+# function ExpectationMaximization_old(
+#     model::ForecastingModel{Z, GaussianLinearStateSpaceSystem{Z}},
+#     observation_data::Matrix{Z},
+#     exogenous_data::Matrix{Z},
+#     control_data::Matrix{Z};
+#     maxiters_em::Int = 100,
+#     abstol_em::Float64 = 1e-8,
+#     reltol_em::Float64 = 1e-8,
+#     optim_method = Optim.Newton(),
+#     diff_method = Optimization.AutoForwardDiff(),
+#     kwargs...
+# ) where {Z <: Real}
+
+#     # Fixed values
+#     n_obs = size(observation_data, 1)
+
+#     ivar_obs_vec = [findall(.!isnan.(observation_data[t, :])) for t in 1:n_obs]
+#     valid_obs_vec = [length(ivar_obs_vec) > 0 for t in 1:n_obs]
+#     glss = model.system
+#     t_index_table = [model.current_state.t + (model.system.dt) * (t - 1)
+#                    for t in 1:n_obs]
+#     n_X = glss.n_X
+#     n_Y = glss.n_Y
+
+#     # Q function
+#     function Q(parameters, p)
+
+#         smoothed_state_μ, smoothed_state_Σ, smoothed_autocov = p
+        
+#         L = 0.0
+#         η_i = @MVector zeros(eltype(parameters), n_X)
+#         V_η_i = @MMatrix zeros(eltype(parameters), n_X, n_X)
+#         ϵ_i = @MVector zeros(eltype(parameters), n_Y)
+#         V_ϵ_i = @MMatrix zeros(eltype(parameters), n_Y, n_Y)
+
+#         @inbounds for (t, t_step) in enumerate(t_index_table)
+
+#             ivar_obs = ivar_obs_vec[t]
+
+#             ex = exogenous_data[t, :]
+#             R_i = glss.R_t(ex, parameters, t_step)
+#             A_i = glss.A_t(ex, parameters, t_step)
+#             B_i = glss.B_t(ex, parameters, t_step)
+#             c_i = glss.c_t(ex, parameters, t_step)
+
+#             η_i .= smoothed_state_μ[t + 1, :] - (
+#                 A_i * smoothed_state_μ[t, :] +
+#                 B_i * control_data[t, :] +
+#                 c_i
+#             )
+#             V_η_i .= smoothed_state_Σ[t + 1, :, :] -
+#                     smoothed_autocov[t] * transpose(A_i) -
+#                     A_i * transpose(smoothed_autocov[t]) +
+#                     A_i * smoothed_state_Σ[t, :, :] * transpose(A_i)
+
+#             if valid_obs_vec[t]
+#                 H_i = glss.H_t(ex, parameters, t_step)[ivar_obs, :]
+#                 d_i = glss.d_t(ex, parameters, t_step)[ivar_obs]
+#                 Q_i = glss.Q_t(ex, parameters, t_step)[ivar_obs, ivar_obs]
+
+#                 ϵ_i .= observation_data[t, ivar_obs] - (
+#                     H_i * smoothed_state_μ[t, :] +
+#                     d_i
+#                 )
+#                 V_ϵ_i .= H_i *
+#                         smoothed_state_Σ[t, :, :] *
+#                         transpose(H_i)
+
+#                 L -= (
+#                     logdet(Q_i) +
+#                     tr((ϵ_i * transpose(ϵ_i) + V_ϵ_i) * inv(Q_i))
+#                 )
+#             end
+#             L -= (logdet(R_i) + tr((η_i * transpose(η_i) + V_η_i) * inv(R_i)))
+#         end
+
+#         return -L / n_obs
+#     end
+
+#     # Optimization setup
+#     optprob = OptimizationFunction(Q, diff_method)
+#     llk_array = []
+#     parameters = model.parameters
+
+#     # Main EM iterations
+#     for i in 1:maxiters_em
+#         if i > 2 && (
+#             abs(llk_array[end - 1] - llk_array[end]) < abstol_em ||
+#             abs((llk_array[end - 1] - llk_array[end]) / llk_array[end - 1]) < reltol_em
+#         )
+#             break
+#         end
+
+#         # Filtering and Smoothing
+#         filter_output = filtering(model, observation_data, exogenous_data, control_data; parameters = parameters)
+#         push!(llk_array, filter_output.llk / n_obs)
+#         println("Iter n° $(i-1) | Log Likelihood: ", llk_array[end])
+
+#         smoother_output = smoothing(model, observation_data, exogenous_data, control_data, filter_output; parameters = parameters)
+#         smoothed_state_μ = SizedArray{Tuple{n_obs+1, n_X}}(stack(map(t -> t.μ_t, smoother_output.smoothed_state), dims=1))
+#         smoothed_state_Σ = SizedArray{Tuple{n_obs+1, n_X, n_X}}(stack(map(t -> t.Σ_t, smoother_output.smoothed_state), dims=1))
+
+#         # Optimization with smoothed data
+#         prob = Optimization.OptimizationProblem(optprob, parameters, (smoothed_state_μ, smoothed_state_Σ, smoother_output.autocov_state))
+#         sol = solve(prob, optim_method; kwargs...)
+#         parameters = sol.minimizer
+#     end
+
+#     # Final filtering
+#     filter_output = filtering(model, observation_data, exogenous_data, control_data; parameters = parameters)
+#     push!(llk_array, filter_output.llk / n_obs)
+#     println("Final | Log Likelihood: ", llk_array[end])
+
+#     return parameters
+# end
+
 function ExpectationMaximization(
-    model::ForecastingModel{Z, GaussianLinearStateSpaceSystem{Z}},
+    model::ForecastingModel{Z, S},
     observation_data::Matrix{Z},
     exogenous_data::Matrix{Z},
     control_data::Matrix{Z};
+    filter_method::AbstractFilter{Z} = default_filter(model),
+    smoother_method::AbstractSmoother{Z} = default_smoother(model),
     maxiters_em::Int = 100,
     abstol_em::Float64 = 1e-8,
     reltol_em::Float64 = 1e-8,
     optim_method = Optim.Newton(),
     diff_method = Optimization.AutoForwardDiff(),
     kwargs...
-) where {Z <: Real}
+) where {Z <: Real, S <: AbstractStateSpaceSystem{Z}}
 
     # Fixed values
     n_obs = size(observation_data, 1)
 
     ivar_obs_vec = [findall(.!isnan.(observation_data[t, :])) for t in 1:n_obs]
     valid_obs_vec = [length(ivar_obs_vec) > 0 for t in 1:n_obs]
-    glss = model.system
-    t_index_table = [model.current_state.t + (model.system.dt) * (t - 1)
-                   for t in 1:n_obs]
-    n_X = glss.n_X
-    n_Y = glss.n_Y
+    ssm = model.system
+    t_index_table = [model.current_state.t + (ssm.dt) * (t - 1) for t in 1:n_obs]
+    n_X = ssm.n_X
+    n_Y = ssm.n_Y
 
-    # Q function
-    function Q(parameters, p)
+    Q = get_Q_function(smoother_method, ivar_obs_vec, valid_obs_vec, t_index_table, ssm, n_X, n_Y, n_obs, observation_data, exogenous_data, control_data)
+
+    # Optimization setup
+    optprob = OptimizationFunction(Q, diff_method)
+    llk_array = []
+    parameters = model.parameters
+
+    # Main EM iterations
+    for i in 1:maxiters_em
+        if i > 2 && (
+            abs(llk_array[end - 1] - llk_array[end]) < abstol_em ||
+            abs((llk_array[end - 1] - llk_array[end]) / llk_array[end - 1]) < reltol_em
+        )
+            break
+        end
+
+        # Filtering
+        filter_output = filtering(model, observation_data, exogenous_data, control_data; parameters = parameters, filtering_method=deepcopy(filter_method))
+        push!(llk_array, filter_output.llk / n_obs)
+        println("Iter n° $(i-1) | Log Likelihood: ", llk_array[end])
+
+        # Smoothing
+        smoother_output = smoothing(model, observation_data, exogenous_data, control_data, filter_output; parameters = parameters, smoother_method=deepcopy(smoother_method))
+        inputs_Q = postprocessing_smoother_output(smoother_output, n_obs, n_X)
+        
+        # Optimization with smoothed data
+        prob = Optimization.OptimizationProblem(optprob, parameters, inputs_Q)
+        sol = solve(prob, optim_method; kwargs...)
+        parameters = sol.minimizer
+    end
+
+    # Final filtering
+    filter_output = filtering(model, observation_data, exogenous_data, control_data; parameters = parameters, filtering_method=filter_method)
+    push!(llk_array, filter_output.llk / n_obs)
+    println("Final | Log Likelihood: ", llk_array[end])
+
+    return parameters
+
+end
+
+function postprocessing_smoother_output(smoother_output::KalmanSmootherOutput{Z}, n_obs, n_X) where {Z <: Real}
+    smoothed_state_μ = SizedArray{Tuple{n_obs+1, n_X}}(stack(map(t -> t.μ_t, smoother_output.smoothed_state), dims=1))
+    smoothed_state_Σ = SizedArray{Tuple{n_obs+1, n_X, n_X}}(stack(map(t -> t.Σ_t, smoother_output.smoothed_state), dims=1))
+    return (smoothed_state_μ, smoothed_state_Σ, smoother_output.autocov_state)
+end
+
+function get_Q_function(smoother_method::S, ivar_obs_vec, valid_obs_vec, t_index_table, ssm, n_X, n_Y, n_obs, observation_data, exogenous_data, control_data) where {Z <: Real, S <: AbstractGaussianDeterministicSmoother{Z}}
+    function Q_gaussian_state(parameters, p)
 
         smoothed_state_μ, smoothed_state_Σ, smoothed_autocov = p
         
@@ -97,10 +260,10 @@ function ExpectationMaximization(
             ivar_obs = ivar_obs_vec[t]
 
             ex = exogenous_data[t, :]
-            R_i = glss.R_t(ex, parameters, t_step)
-            A_i = glss.A_t(ex, parameters, t_step)
-            B_i = glss.B_t(ex, parameters, t_step)
-            c_i = glss.c_t(ex, parameters, t_step)
+            R_i = ssm.R_t(ex, parameters, t_step)
+            A_i = ssm.A_t(ex, parameters, t_step)
+            B_i = ssm.B_t(ex, parameters, t_step)
+            c_i = ssm.c_t(ex, parameters, t_step)
 
             η_i .= smoothed_state_μ[t + 1, :] - (
                 A_i * smoothed_state_μ[t, :] +
@@ -113,9 +276,9 @@ function ExpectationMaximization(
                     A_i * smoothed_state_Σ[t, :, :] * transpose(A_i)
 
             if valid_obs_vec[t]
-                H_i = glss.H_t(ex, parameters, t_step)[ivar_obs, :]
-                d_i = glss.d_t(ex, parameters, t_step)[ivar_obs]
-                Q_i = glss.Q_t(ex, parameters, t_step)[ivar_obs, ivar_obs]
+                H_i = ssm.H_t(ex, parameters, t_step)[ivar_obs, :]
+                d_i = ssm.d_t(ex, parameters, t_step)[ivar_obs]
+                Q_i = ssm.Q_t(ex, parameters, t_step)[ivar_obs, ivar_obs]
 
                 ϵ_i .= observation_data[t, ivar_obs] - (
                     H_i * smoothed_state_μ[t, :] +
@@ -136,42 +299,9 @@ function ExpectationMaximization(
         return -L / n_obs
     end
 
-    # Optimization setup
-    optprob = OptimizationFunction(Q, diff_method)
-    llk_array = []
-    parameters = model.parameters
-
-    # Main EM iterations
-    for i in 1:maxiters_em
-        if i > 2 && (
-            abs(llk_array[end - 1] - llk_array[end]) < abstol_em ||
-            abs((llk_array[end - 1] - llk_array[end]) / llk_array[end - 1]) < reltol_em
-        )
-            break
-        end
-
-        # Filtering and Smoothing
-        filter_output = filtering(model, observation_data, exogenous_data, control_data; parameters = parameters)
-        push!(llk_array, filter_output.llk / n_obs)
-        println("Iter n° $(i-1) | Log Likelihood: ", llk_array[end])
-
-        smoother_output = smoothing(model, observation_data, exogenous_data, control_data, filter_output; parameters = parameters)
-        smoothed_state_μ = SizedArray{Tuple{n_obs+1, n_X}}(stack(map(t -> t.μ_t, smoother_output.smoothed_state), dims=1))
-        smoothed_state_Σ = SizedArray{Tuple{n_obs+1, n_X, n_X}}(stack(map(t -> t.Σ_t, smoother_output.smoothed_state), dims=1))
-
-        # Optimization with smoothed data
-        prob = Optimization.OptimizationProblem(optprob, parameters, (smoothed_state_μ, smoothed_state_Σ, smoother_output.autocov_state))
-        sol = solve(prob, optim_method; kwargs...)
-        parameters = sol.minimizer
-    end
-
-    # Final filtering
-    filter_output = filtering(model, observation_data, exogenous_data, control_data; parameters = parameters)
-    push!(llk_array, filter_output.llk / n_obs)
-    println("Final | Log Likelihood: ", llk_array[end])
-
-    return parameters
+    return Q_gaussian_state
 end
+
 
 # function EM_EnKS(
 #         model::ForecastingModel,
