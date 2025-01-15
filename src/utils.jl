@@ -1,5 +1,5 @@
-using FunctionWrappers
-import FunctionWrappers: FunctionWrapper
+# using FunctionWrappers
+# import FunctionWrappers: FunctionWrapper
 
 """
 Discrete sampling over ``n_particules`` with ``prob`` probabilities.
@@ -100,16 +100,16 @@ $(TYPEDEF)
 
 FunctionWrapper for function that takes as input (Vector{T}, Vector{<:Real}, T) and returns a Matrix{T}.
 """
-const LinearMatFunction{T} = FunctionWrapper{
-    Matrix{T}, Tuple{Vector{T}, Vector{<:Real}, T}} where {T <: Real}
+# const LinearMatFunction{T} = FunctionWrapper{
+#     Matrix{T}, Tuple{Vector{T}, Vector{<:Real}, T}} where {T <: Real}
 
 """
 $(TYPEDEF)
 
 FunctionWrapper for function that takes as input (Vector{T}, Vector{<:Real}, T) and returns a Vector{T}.
 """
-const LinearVecFunction{T} = FunctionWrapper{
-    Vector{T}, Tuple{Vector{T}, Vector{<:Real}, T}} where {T <: Real}
+# const LinearVecFunction{T} = FunctionWrapper{
+#     Vector{T}, Tuple{Vector{T}, Vector{<:Real}, T}} where {T <: Real}
 
 # TODO : see if it's possible to replace VecOrMat by Matrix or Vector for NonLinearMatorVecFunction?
 """
@@ -117,8 +117,8 @@ $(TYPEDEF)
 
 FunctionWrapper for function that takes as input (VecOrMat{T}, Vector{T}, Vector{<:Real}, T) and returns a VecOrMat{T}.
 """
-const NonLinearMatorVecFunction{T} = FunctionWrapper{
-    VecOrMat{T}, Tuple{VecOrMat{T}, Vector{T}, Vector{T}, Vector{<:Real}, T}} where {T <: Real}
+# const NonLinearMatorVecFunction{T} = FunctionWrapper{
+#     VecOrMat{T}, Tuple{VecOrMat{T}, Vector{T}, Vector{T}, Vector{<:Real}, T}} where {T <: Real}
 
 """
 $(TYPEDEF)

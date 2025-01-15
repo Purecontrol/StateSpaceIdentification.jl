@@ -77,7 +77,7 @@ mutable struct KalmanFilter{Z <: Real} <: AbstractGaussianDeterministicFilter{Z}
     end
 
     function KalmanFilter(model::ForecastingModel{Z, T, S}; type=Z) where {Z <: Real, T <: AbstractStateSpaceSystem, S <: AbstractState{Z}}
-        return KalmanFilter{type}(model.current_state, model.system.n_X, model.system.n_Y)
+        return KalmanFilter{type}(deepcopy(model.current_state), model.system.n_X, model.system.n_Y)
     end
 end
 
@@ -110,7 +110,7 @@ mutable struct KalmanFilterOutput{Z <: Real} <: AbstractGaussianFilterOutput{Z}
             model.system.n_X
         )
 
-        # Define matricess
+        # Define matrices
         K = Array{Array{Z, 2}, 1}(undef, n_obs)
         M = Array{Array{Z, 2}, 1}(undef, n_obs)
         L = Array{Array{Z, 2}, 1}(undef, n_obs)
@@ -148,10 +148,20 @@ function filtering!(
     t_step_table = collect(range(
         filter_method.init_state_x.t, length = n_obs, step = sys.dt))
 
+    # n_X = sys.n_X
+    # n_Y = sys.n_Y
+    # A = zeros(eltype(parameters), n_X, n_X)
+    # B = zeros(eltype(parameters), n_X, 1)
+    # c = zeros(eltype(parameters), n_X, 1)
+    # H = zeros(eltype(parameters), n_Y, n_X)
+    # d = zeros(eltype(parameters), n_Y, 1)
+    # R = zeros(eltype(parameters), n_X, n_X)
+    # Q = zeros(eltype(parameters), n_Y, n_Y)
+
     @inbounds for (t, t_step) in enumerate(t_step_table)
 
         # Get current matrix A, B, H and Q
-        ex = exogenous_data[t, :]
+        ex = view(exogenous_data, t, :)
         A = sys.A_t(ex, parameters, t_step)#::AbstractMatrix{Z}
         B = sys.B_t(ex, parameters, t_step)#::AbstractMatrix{Z}
         c = sys.c_t(ex, parameters, t_step)#::AbstractVector{Z}
@@ -229,22 +239,22 @@ function update_filter_state!(kalman_state::KalmanFilterState{Z}, y, u, A, B, c 
     Hivar = @view H[ivar_obs, :]
 
     # Compute innovations and stuff for predicted and filtered states
-    kalman_state.v = y[ivar_obs] - (Hivar * kalman_state.predicted_state_μ + d[ivar_obs])
+    kalman_state.v = view(y, ivar_obs) - (Hivar * kalman_state.predicted_state_μ + view(d, ivar_obs))
     kalman_state.M = kalman_state.predicted_state_Σ * transpose(Hivar)
-    kalman_state.S = Hivar * kalman_state.M + Q[ivar_obs, ivar_obs]
+    kalman_state.S = Hivar * kalman_state.M + view(Q, ivar_obs, ivar_obs)
 
     inv_S = inv(kalman_state.S)
     M_invS = kalman_state.M * inv_S
 
     # Update states (Update step)
-    kalman_state.filtered_state_μ = kalman_state.predicted_state_μ +
+    kalman_state.filtered_state_μ .= kalman_state.predicted_state_μ +
                                     M_invS * kalman_state.v
-    kalman_state.filtered_state_Σ = kalman_state.predicted_state_Σ -
+    kalman_state.filtered_state_Σ .= kalman_state.predicted_state_Σ -
                                     M_invS * transpose(kalman_state.M)
 
     # Forecast step
-    kalman_state.predicted_state_μ = A * kalman_state.filtered_state_μ + B * u + c
-    kalman_state.predicted_state_Σ = A * kalman_state.filtered_state_Σ * transpose(A) + R
+    kalman_state.predicted_state_μ .= A * kalman_state.filtered_state_μ + B * u + c
+    kalman_state.predicted_state_Σ .= A * kalman_state.filtered_state_Σ * transpose(A) + R
 
     # Compute stuff for Kalman smoother
     kalman_state.K = A * M_invS
@@ -265,12 +275,12 @@ function save_state_in_filter_output!(
 ) where {Z <: Real}
 
     # Save predicted state
-    filter_output.predicted_state[t + 1].μ_t = filter_state.predicted_state_μ
-    filter_output.predicted_state[t + 1].Σ_t = filter_state.predicted_state_Σ
+    filter_output.predicted_state[t + 1].μ_t .= filter_state.predicted_state_μ
+    filter_output.predicted_state[t + 1].Σ_t .= filter_state.predicted_state_Σ
 
     # Save filtered state
-    filter_output.filtered_state[t].μ_t = filter_state.filtered_state_μ
-    filter_output.filtered_state[t].Σ_t = filter_state.filtered_state_Σ
+    filter_output.filtered_state[t].μ_t .= filter_state.filtered_state_μ
+    filter_output.filtered_state[t].Σ_t .= filter_state.filtered_state_Σ
 
     # Save matrix values
     filter_output.K[t] = filter_state.K
@@ -289,6 +299,6 @@ function save_initial_state_in_filter_output!(
 ) where {Z <: Real}
 
     # Save initial predicted state
-    filter_output.predicted_state[1].μ_t = filter_state.predicted_state_μ
-    filter_output.predicted_state[1].Σ_t = filter_state.predicted_state_Σ
+    filter_output.predicted_state[1].μ_t .= filter_state.predicted_state_μ
+    filter_output.predicted_state[1].Σ_t .= filter_state.predicted_state_Σ
 end
