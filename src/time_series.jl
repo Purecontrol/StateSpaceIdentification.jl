@@ -312,11 +312,15 @@ Define iterators of TimeSeries
 Plot's recipe for TimeSeries of GaussianStateStochasticProcess.
 """
 @recipe function plot(ts::TimeSeries{Z, GaussianStateStochasticProcess{Z}};
-        label = "", ic = 0.95) where {Z <: Real}
+        label = "", ic = 0.95, x_date=nothing) where {Z <: Real}
     dist = Normal(0, 1)
     mean_process = stack(map(t -> t.μ_t, ts), dims = 1)
     var_process = stack(map(t -> diag(t.Σ_t), ts), dims = 1)
-    t_index = stack(map(t -> t.t, ts), dims = 1)
+    if isnothing(x_date)
+        t_index = stack(map(t -> t.t, ts), dims = 1)
+    else
+        t_index = x_date
+    end
 
     mean_label = isempty(label) ? "" : hcat(vec(["Mean "] .* label)...)
     ci_label = isempty(label) ? "" : hcat(vec(["CI $(Int(ic * 100))% "] .* label)...)
@@ -341,14 +345,20 @@ Plot's recipe for TimeSeries of ParticleSwarmState.
         label = "",
         index = 1:(size(ts[1], 1)),
         ic = 0.95,
-        quantile_tab = nothing
+        quantile_tab = nothing, 
+        x_date=nothing
 ) where {Z <: Real}
     mean_process = vcat(map(s -> mean(s.particles_state', dims = 1), ts)...)
     q_low = hcat(map(
         s -> [quantile(i, (1 - ic) / 2) for i in eachrow(s.particles_state)], ts)...)'
     q_high = hcat(map(
         s -> [quantile(i, ic + (1 - ic) / 2) for i in eachrow(s.particles_state)], ts)...)'
-    t_index = stack(map(t -> t.t, ts), dims = 1)
+    
+    if isnothing(x_date)
+        t_index = stack(map(t -> t.t, ts), dims = 1)
+    else
+        t_index = x_date
+    end
 
     mean_label = isempty(label) ? "" : hcat(vec(["Mean "] .* label)...)
     ci_label = isempty(label) ? "" : hcat(vec(["CI $(Int(ic * 100))% "] .* label)...)
