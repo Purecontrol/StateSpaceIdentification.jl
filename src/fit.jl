@@ -218,7 +218,7 @@ function ExpectationMaximization(
 
         # Filtering
         filter_output = filtering(model, observation_data, exogenous_data, control_data;
-            parameters = parameters, filtering_method = deepcopy(filter_method))
+            parameters = parameters, filter_method = deepcopy(filter_method))
         push!(llk_array, filter_output.llk / n_obs)
         println("Iter n° $(i-1) | Log Likelihood: ", llk_array[end])
 
@@ -346,8 +346,9 @@ function get_Q_function(smoother_method::S, ivar_obs_vec, valid_obs_vec, t_index
                 t_step
             )
 
-            η_i = view(smoothed_particles, t + 1, :, :) - M_i
-            Ω .= (η_i * η_i') ./ (n_smoothing - 1)
+            η_i = @views view(smoothed_particles, t + 1, :, :) .- M_i
+            mul!(Ω, η_i, η_i')#Ω .= (η_i * η_i') ./ (n_smoothing - 1)
+            Ω .*= (1.0 / (n_smoothing - 1))
             if valid_obs_vec[t]
                 H_i = view(
                     observation(
@@ -356,9 +357,10 @@ function get_Q_function(smoother_method::S, ivar_obs_vec, valid_obs_vec, t_index
                         ex,
                         parameters,
                         t_step), ivar_obs, :)
-                Q_i = view(ssm.Q_t(ex, parameters, t_step), ivar_obs, ivar_obs)
-                ϵ_i = view(observation_data, t, ivar_obs) .- H_i
-                Σ .= (ϵ_i * ϵ_i') ./ (n_smoothing - 1)
+                Q_i = @views view(ssm.Q_t(ex, parameters, t_step), ivar_obs, ivar_obs)
+                ϵ_i = @views view(observation_data, t, ivar_obs) .- H_i
+                mul!(Σ, ϵ_i, ϵ_i') #Σ .= (ϵ_i * ϵ_i') ./ (n_smoothing - 1)
+                Σ .*= (1.0 / (n_smoothing - 1))
                 L -= (
                     sum(logdet(Q_i)) +
                     tr(Σ * pinv(Q_i))

@@ -9,24 +9,24 @@ function filtering(
         observation_data::Matrix{Z},
         exogenous_data::Matrix{Z},
         control_data::Matrix{Z};
-        filtering_method = nothing,
+        filter_method = nothing,
         parameters::Vector{Z} = model.parameters,
         kwargs...
 ) where {Z <: Real}
-    if isnothing(filtering_method)
-        filtering_method = default_filter(model; kwargs...)::AbstractFilter{Z}
+    if isnothing(filter_method)
+        filter_method = default_filter(model; kwargs...)::AbstractFilter{Z}
     end
 
-    if !(isa(filtering_method, AbstractFilter))
+    if !(isa(filter_method, AbstractFilter))
         @error "The type of the filtering method need a subtype of AbstractFilter."
     end
 
-    filter_output = get_filter_output(filtering_method, model, observation_data)::AbstractFilterOutput{Z}
+    filter_output = get_filter_output(filter_method, model, observation_data)::AbstractFilterOutput{Z}
 
     return filtering!(
         filter_output,
         model.system,
-        filtering_method,
+        filter_method,
         observation_data,
         exogenous_data,
         control_data,
@@ -58,7 +58,7 @@ function update(
         observation_data,
         exogenous_data,
         control_data;
-        filter = filter_method,
+        filter_method = filter_method,
         parameters = parameters
     )
 
