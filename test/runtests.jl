@@ -1,4 +1,5 @@
 using StateSpaceIdentification
 using Test
 
-@test true
+include("test_aqua.jl")
+include("test_timeseries.jl")

@@ -1,6 +1,11 @@
 using Documenter
 using StateSpaceIdentification
 
+DocMeta.setdocmeta!(StateSpaceIdentification,
+                    :DocTestSetup,
+                    :(using StateSpaceIdentification;),
+                    recursive = true)
+
 makedocs(
     sitename = "StateSpaceIdentification",
     format = Documenter.HTML(),
