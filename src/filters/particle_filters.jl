@@ -179,8 +179,6 @@ mutable struct ParticleFilterOutput{Z <: Real} <:
         ancestor_indices = zeros(Int64, n_obs, n_particles)
         predicted_particles_swarm_mean = zeros(
             Z, n_obs + 1, model.system.n_X, n_particles)
-        filtered_state_mean = zeros(Z, n_obs, model.system.n_X)
-        filtered_state_var = zeros(Z, n_obs, model.system.n_X, model.system.n_X)
 
         return new{Z}(
             predicted_particles_swarm,
