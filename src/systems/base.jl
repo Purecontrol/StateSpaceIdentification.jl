@@ -26,28 +26,28 @@ $(TYPEDSIGNATURES)
 
 Abstract ``transition`` function that has to be defined for all subtypes of AbstractStateSpaceSystem.
 """
-function transition(
-        ssm::S,
-        state_variables::AbstractArray,
-        exogenous_variables::AbstractArray,
-        control_variables::AbstractArray,
-        parameters::AbstractArray,
-        t::Real
-) where {S <: AbstractStateSpaceSystem}
-    error("The function ``transition``` has to be defined for subtype of AbstractStateSpaceSystem.")
-end
+# function transition(
+#         ssm::S,
+#         state_variables::AbstractArray,
+#         exogenous_variables::AbstractArray,
+#         control_variables::AbstractArray,
+#         parameters::AbstractArray,
+#         t::Real
+# ) where {S <: AbstractStateSpaceSystem}
+#     error("The function ``transition``` has to be defined for subtype of AbstractStateSpaceSystem.")
+# end
 
 """
 $(TYPEDSIGNATURES)
 
 Abstract ``observation`` function that has to be defined for all subtypes of AbstractStateSpaceSystem.
 """
-function observation(
-        ssm::S,
-        state_variables::AbstractArray,
-        exogenous_variables::AbstractArray,
-        parameters::AbstractArray,
-        t::Real
-) where {S <: AbstractStateSpaceSystem}
-    error("The function ``observation``` has to be defined for subtype of AbstractStateSpaceSystem.")
-end
+# function observation(
+#         ssm::S,
+#         state_variables::AbstractArray,
+#         exogenous_variables::AbstractArray,
+#         parameters::AbstractArray,
+#         t::Real
+# ) where {S <: AbstractStateSpaceSystem}
+#     error("The function ``observation``` has to be defined for subtype of AbstractStateSpaceSystem.")
+# end

@@ -80,12 +80,12 @@ The ``transition`` function for ``GaussianNonLinearStateSpaceSystem`` which is `
 """
 function transition(
         ssm::GaussianNonLinearStateSpaceSystem{Z},
-        state_variables::VecOrMat{Z},
-        exogenous_variables::Vector{Z},
-        control_variables::Vector{Z},
-        parameters::Vector{Z},
+        state_variables::AbstractVecOrMat{Z},
+        exogenous_variables::AbstractVector{Z},
+        control_variables::AbstractVector{Z},
+        parameters::AbstractArray,#Vector{Z},
         t::Z
-) where {Z <: Real}
+) where {Z <: Real}#, A <: AbstractArray{Z}}
     return ssm.M_t(state_variables, exogenous_variables, control_variables, parameters, t)
 end
 
@@ -96,9 +96,9 @@ The ``observation`` function for ``GaussianNonLinearStateSpaceSystem`` which is 
 """
 function observation(
         ssm::GaussianNonLinearStateSpaceSystem{Z},
-        state_variables::VecOrMat{Z},
-        exogenous_variables::Vector{Z},
-        parameters::Vector{Z},
+        state_variables::AbstractVecOrMat{Z},
+        exogenous_variables::AbstractVector{Z},
+        parameters::AbstractArray,#Vector{Z},
         t::Z
 ) where {Z <: Real}
     return ssm.H_t(state_variables, exogenous_variables, parameters, t)

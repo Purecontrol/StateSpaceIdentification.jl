@@ -8,8 +8,6 @@ using DocStringExtensions
 
 export TimeSeries
 
-DEFAULT_REAL_TYPE = Float64
-
 """
 The `AbstractState` type serves as the parent type for all state implementations within this package.
 

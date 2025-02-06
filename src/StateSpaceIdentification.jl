@@ -5,6 +5,8 @@ using DocStringExtensions
 using LinearAlgebra
 using InteractiveUtils
 
+DEFAULT_REAL_TYPE = Float64
+
 include("utils.jl")
 include("time_series.jl")
 include("systems/base.jl")

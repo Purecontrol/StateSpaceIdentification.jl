@@ -302,3 +302,34 @@ function _promote(args...)
     _type = Base.promote_eltype(args...)
     return map(x -> convert.(_type, x), args)
 end
+
+######################################## Rolling Std ################################################""
+
+mutable struct RollingStd{Z}
+    count::Int
+    buffer::Vector{Z}
+    max_size::Int
+
+    function RollingStd{Z}(max_size::Int) where {Z <: Real}
+        new{Z}(0.0, Z[], max_size)
+    end
+end
+@inline RollingStd(max_size::Int) = RollingStd{DEFAULT_REAL_TYPE}(max_size)
+
+function update!(rs::RollingStd{Z}, new_data::Z) where {Z <: Real}
+    if rs.count < rs.max_size
+        push!(rs.buffer, new_data)
+        rs.count += 1
+    else
+        popfirst!(rs.buffer)
+        push!(rs.buffer, new_data)
+    end
+end
+
+function get_value(rs::RollingStd{Z}) where {Z <: Real}
+    if rs.count < rs.max_size
+        return NaN
+    else
+        return std(rs.buffer)
+    end
+end

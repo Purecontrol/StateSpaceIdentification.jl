@@ -91,10 +91,10 @@ The ``transition`` function for ``GaussianLinearStateSpaceSystem`` which is ``\\
 """
 function transition(
         ssm::GaussianLinearStateSpaceSystem{Z},
-        state_variables::VecOrMat{Z},
-        exogenous_variables::Vector{Z},
-        control_variables::Vector{Z},
-        parameters::Vector{Z},
+        state_variables::AbstractVecOrMat{Z},
+        exogenous_variables::AbstractVector{Z},
+        control_variables::AbstractVector{Z},
+        parameters,#::Vector{Z},
         t::Z
 ) where {Z <: Real}
     return ssm.A_t(exogenous_variables, parameters, t) * state_variables .+
@@ -109,9 +109,9 @@ The ``observation`` function for ``GaussianLinearStateSpaceSystem`` which is ``y
 """
 function observation(
         ssm::GaussianLinearStateSpaceSystem{Z},
-        state_variables::VecOrMat{Z},
-        exogenous_variables::Vector{Z},
-        parameters::Vector{Z},
+        state_variables::AbstractVecOrMat{Z},
+        exogenous_variables::AbstractVector{Z},
+        parameters,#::Vector{Z},
         t::Z
 ) where {Z <: Real}
     return ssm.H_t(exogenous_variables, parameters, t) * state_variables .+
