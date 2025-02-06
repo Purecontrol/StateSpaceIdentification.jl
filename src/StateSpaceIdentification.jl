@@ -3,7 +3,6 @@ module StateSpaceIdentification
 using Distributions
 using DocStringExtensions
 using LinearAlgebra
-using InteractiveUtils
 
 DEFAULT_REAL_TYPE = Float64
 
