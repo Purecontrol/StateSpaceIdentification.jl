@@ -55,11 +55,11 @@ function E_step(parameters, model, observation_data, exogenous_data,
     return filter_output, smoother_output
 end
 
-function M_step(parameters, optprob, optim_method, inputs_Q; kwargs...)
+function M_step(parameters, optprob, optim_method, inputs_Q, p_optim_method, p_opt_problem)
 
     # Optimization with smoothed data
-    prob = Optimization.OptimizationProblem(optprob, parameters, inputs_Q)
-    sol = solve(prob, optim_method; kwargs...)
+    prob = Optimization.OptimizationProblem(optprob, parameters, inputs_Q; p_opt_problem...)
+    sol = solve(prob, optim_method; p_optim_method...)
     return sol.minimizer
 end
 
@@ -75,10 +75,11 @@ function ExpectationMaximization(
         reltol_em::Float64 = 1e-8,
         optim_method = Optim.Newton(),
         diff_method = Optimization.AutoForwardDiff(),
+        p_optim_method = Dict(),
+        p_opt_problem = Dict(),
         verbose = false,
         iter_saem = 0,
-        alpha = 1,
-        kwargs...
+        alpha = 1
 ) where {Z <: Real, S <: AbstractStateSpaceSystem{Z}}
 
     # Fixed values
@@ -144,7 +145,7 @@ function ExpectationMaximization(
         end
 
         # Optimization with smoothed data
-        found_parameters = M_step(parameters, optprob, optim_method, inputs_Q; kwargs...)
+        found_parameters = M_step(parameters, optprob, optim_method, inputs_Q, p_optim_method, p_opt_problem)
         if termination_flag == false
             parameters = found_parameters
         else
