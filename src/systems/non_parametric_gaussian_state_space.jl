@@ -171,10 +171,13 @@ function (llr::LLR)(x, t)
     A = vcat([ones(1, k, n_particules), analogs[:, knn_x_new]]...) .*
         permutedims(cat(weights, dims = 3), (3, 2, 1))
     B = succesors[knn_x_new, :] .* cat(weights', dims = 3)
-    # M = cat(map((x, y) -> x' \ y, eachslice(A, dims=3), eachslice(B, dims=2))..., dims=3)
-    M = Array{Float64}(undef, size(A, 1), size(B, 3), n_particules)
-    @inbounds for i in 1:n_particules
-        @inbounds @views M[:, :, i] = A[:, :, i]' \ B[:, i]
+    if size(B, 3) > 1 #TODO : improve after Multiple MISO here but maybe in the futur interesting to do MIMO
+        M = cat(map((x, y) -> x' \ y, eachslice(A, dims=3), eachslice(B, dims=2))..., dims=3)
+    else
+        M = Array{Float64}(undef, size(A, 1), size(B, 3), n_particules)
+        @inbounds for i in 1:n_particules
+            @inbounds @views M[:, :, i] = A[:, :, i]' \ B[:, i]
+        end
     end
     x_new = vcat([ones(1, n_particules), x]...)
 
