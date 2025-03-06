@@ -13,7 +13,7 @@ include("models.jl")
 
 include("systems/gaussian_linear_state_space.jl")
 include("systems/non_linear_gaussian_state_space.jl")
-# include("systems/non_parametric_gaussian_state_space.jl")
+include("systems/non_parametric_gaussian_state_space.jl")
 
 include("filters/base.jl")
 include("smoothers/base.jl")
@@ -34,7 +34,7 @@ include("fit.jl")
 
 export GaussianStateStochasticProcess, ParticleSwarmState, TimeSeries
 export ForecastingModel, default_filter, default_smoother
-export GaussianLinearStateSpaceSystem, GaussianNonLinearStateSpaceSystem
+export GaussianLinearStateSpaceSystem, GaussianNonLinearStateSpaceSystem, GaussianNonParametricStateSpaceSystem
 export filtering, update, update!, smoothing, filtering_and_smoothing
 export KalmanFilter, KalmanSmoother
 export EnsembleKalmanFilter, EnsembleKalmanSmoother

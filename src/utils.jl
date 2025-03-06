@@ -219,6 +219,14 @@ struct TransitionNonLinearProvider{Z <: Real} <: AbstractNonLinearProvider{Z}
     # end
 end
 
+struct TransitionNonParametricProvider{Z <: Real} <: AbstractNonLinearProvider{Z}
+    func::Function #NonLinearMatorVecFunction{Z}
+
+    # function TransitionNonLinearProvider{Z}(f::Function) where {Z <: Real}
+    #     new{Z}(NonLinearMatorVecFunction{Z}(f))
+    # end
+end
+
 struct ObservationNonLinearProvider{Z <: Real} <: AbstractNonLinearProvider{Z}
     func::Function #NonLinearMatorVecFunction{Z}
 
@@ -291,6 +299,15 @@ $(TYPEDSIGNATURES)
 """
 @inline function (A::TransitionNonLinearProvider{Z})(x, exogenous, u, params, t) where {Z <: Real}
     return A.func(x, exogenous, u, params, t)
+end
+
+"""
+Define `call` operator for TransitionNonParametricProvider (Transition Operator).
+
+$(TYPEDSIGNATURES)
+"""
+@inline function (A::TransitionNonParametricProvider{Z})(x, x_scaled, exogenous, u, params, llrs, t) where {Z <: Real}
+    return A.func(x, x_scaled, exogenous, u, params, llrs, t)
 end
 
 """Observation operator."""

@@ -56,7 +56,7 @@ end
 """
 $(TYPEDSIGNATURES)
 
-The ``default_filter`` for ``GaussianLinearStateSpaceSystem`` is the ``ParticleFilter``.
+The ``default_filter`` for ``GaussianNonLinearStateSpaceSystem`` is the ``ParticleFilter``.
 """
 function default_filter(model::ForecastingModel{Z, GaussianNonLinearStateSpaceSystem{Z}, S};
         kwargs...) where {Z <: Real, S <: AbstractState{Z}}
@@ -66,7 +66,7 @@ end
 """
 $(TYPEDSIGNATURES)
 
-The ``default_smoother`` for ``GaussianLinearStateSpaceSystem`` is the ``BackwardSimulationSmoother``.
+The ``default_smoother`` for ``GaussianNonLinearStateSpaceSystem`` is the ``BackwardSimulationSmoother``.
 """
 function default_smoother(model::ForecastingModel{Z, GaussianNonLinearStateSpaceSystem{Z}, S};
         kwargs...) where {Z <: Real, S <: AbstractState{Z}}

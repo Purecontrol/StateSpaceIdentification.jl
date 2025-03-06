@@ -216,6 +216,9 @@ function Base.length(state::ParticleSwarmState)
     return size(state.particles_state, 2)
 end
 
+function convert(::Type{GaussianStateStochasticProcess{Z1}}, state::ParticleSwarmState{Z2}) where {Z1<:Real, Z2<:Real}
+    return GaussianStateStochasticProcess{Z2}(state.t, mean(state.particles_state, dims=2)[:, 1], cov(state.particles_state, dims=2))
+end
 ######################################################################################
 # TimeSeries
 ######################################################################################
