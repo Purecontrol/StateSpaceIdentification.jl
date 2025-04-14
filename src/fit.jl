@@ -57,10 +57,57 @@ end
 
 function M_step(parameters, optprob, optim_method, inputs_Q, p_optim_method, p_opt_problem)
 
-    # Optimization with smoothed data
+    # Parameter update
     prob = Optimization.OptimizationProblem(optprob, parameters, inputs_Q; p_opt_problem...)
     sol = solve(prob, optim_method; p_optim_method...)
     return sol.minimizer
+
+end
+
+"""
+Updates the Local Linear Regressors (LLRs) within a GaussianNonParametricStateSpaceSystem based on smoothed particle data.
+
+$(TYPEDSIGNATURES)
+
+This function samples particles from the smoothed particle swarm, constructs analog data, 
+and updates the LLRs using either a provided callback function or the default update function.
+"""
+function M_nonparametric_step!(model, parameters, exogenous_data, control_data, smoothed_particles, n_particles_smoothing, n_obs, n_X, n_iteration, custom_llrs_update_callback!)
+    
+    # Sample choosen particles
+    n_selected_particles_nonparametrics = 5
+    idxes_selected_particules = sample(collect(1:(n_particles_smoothing - 1)), n_selected_particles_nonparametrics)
+
+    # Get selected particles
+    analog_states = permutedims(smoothed_particles[1:(end-1), :, idxes_selected_particules], (1, 3, 2))
+    analog_indexes = repeat(Int.(1:(n_obs - 1)), n_selected_particles_nonparametrics)
+    analog_times_in_days = repeat([model.current_state.t + (t - 1) * model.system.dt for t in 1:(n_obs - 1)], n_selected_particles_nonparametrics)
+
+    # Temporary not update mean and variance (it will be like some kind of normalization layer)
+    # model.system.μ = mean(reshape(new_x[1:end, :], (:)), dims=1)
+    # model.system.σ = std(reshape(new_x[1:end, :], (:)), dims=1)
+
+    # Update catalog
+    update_llrs!(model.system, analog_indexes, analog_times_in_days, analog_states, exogenous_data, control_data, update_function! = custom_llrs_update_callback!)
+    
+    # Search for good number of neighbors
+    if n_iteration % 3 == 1
+        k_list = collect(50:5:450)
+        opt_k, _ = find_optimal_number_neighbors(
+            model.system,
+            parameters,
+            analog_states[1:(end - 1), 1, :],
+            analog_states[2:(end), 1, :],
+            exogenous_data,
+            control_data,
+            analog_times_in_days,
+            k_list
+        )
+        @info "Update n_neighbors=$(opt_k) to all LocalLinearRegressor."
+        for llr in model.system.llrs
+            llr.n_neighbors = opt_k
+        end
+    end
 end
 
 function ExpectationMaximization(
@@ -79,7 +126,9 @@ function ExpectationMaximization(
         p_opt_problem = Dict(),
         verbose = false,
         iter_saem = 0,
-        alpha = 1
+        alpha = 1,
+        fit_initial_conditions=false, 
+        custom_llrs_update_callback!::Union{Function, Nothing} = nothing
 ) where {Z <: Real, S <: AbstractStateSpaceSystem{Z}}
 
     # Fixed values
@@ -151,6 +200,16 @@ function ExpectationMaximization(
         else
             parameters = alpha * found_parameters + (1 - alpha) * parameters
         end
+
+        if fit_initial_conditions == true
+            model.current_state = smoother_output.smoothed_state[1]
+        end
+
+        # Update catalog
+        if isa(ssm, GaussianNonParametricStateSpaceSystem)
+            M_nonparametric_step!(model, parameters, exogenous_data, control_data, inputs_Q, smoother_method.n_particles, n_obs, n_X, i, custom_llrs_update_callback!)
+        end
+
     end
 
     # Final filtering

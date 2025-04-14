@@ -313,10 +313,10 @@ Define iterators of TimeSeries
 Plot's recipe for TimeSeries of GaussianStateStochasticProcess.
 """
 @recipe function plot(ts::TimeSeries{Z, GaussianStateStochasticProcess{Z}};
-        label = "", ic = 0.95, x_date=nothing) where {Z <: Real}
+        label = "", ic = 0.95, x_date=nothing, index = 1:(size(ts[1].μ_t, 1))) where {Z <: Real}
     dist = Normal(0, 1)
-    mean_process = stack(map(t -> t.μ_t, ts), dims = 1)
-    var_process = stack(map(t -> diag(t.Σ_t), ts), dims = 1)
+    mean_process = stack(map(t -> t.μ_t, ts), dims = 1)[:, index]
+    var_process = stack(map(t -> diag(t.Σ_t), ts), dims = 1)[:, index]
     if isnothing(x_date)
         t_index = stack(map(t -> t.t, ts), dims = 1)
     else
@@ -328,6 +328,7 @@ Plot's recipe for TimeSeries of GaussianStateStochasticProcess.
 
     @series begin
         alpha --> 0.1
+        hover := false
         label := ci_label
         fillrange := mean_process + quantile(dist, ic + (1 - ic) / 2) * sqrt.(var_process)
         t_index, mean_process + quantile(dist, (1 - ic) / 2) * sqrt.(var_process)

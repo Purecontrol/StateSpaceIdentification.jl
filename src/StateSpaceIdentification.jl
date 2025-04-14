@@ -34,7 +34,7 @@ include("fit.jl")
 
 export GaussianStateStochasticProcess, ParticleSwarmState, TimeSeries
 export ForecastingModel, default_filter, default_smoother
-export GaussianLinearStateSpaceSystem, GaussianNonLinearStateSpaceSystem, GaussianNonParametricStateSpaceSystem
+export GaussianLinearStateSpaceSystem, GaussianNonLinearStateSpaceSystem, GaussianNonParametricStateSpaceSystem, LocalLinearRegressor
 export filtering, update, update!, smoothing, filtering_and_smoothing
 export KalmanFilter, KalmanSmoother
 export EnsembleKalmanFilter, EnsembleKalmanSmoother
