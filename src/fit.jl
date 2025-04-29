@@ -135,7 +135,7 @@ function ExpectationMaximization(
     n_obs = size(observation_data, 1)
 
     ivar_obs_vec = [findall(.!isnan.(observation_data[t, :])) for t in 1:n_obs]
-    valid_obs_vec = [length(ivar_obs_vec) > 0 for t in 1:n_obs]
+    valid_obs_vec = [length(ivar_obs_vec[t]) > 0 for t in 1:n_obs]
     ssm = model.system
     t_index_table = [model.current_state.t + (ssm.dt) * (t - 1) for t in 1:n_obs]
     n_X = ssm.n_X
