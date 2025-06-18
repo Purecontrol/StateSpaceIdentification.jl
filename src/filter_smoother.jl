@@ -10,7 +10,7 @@ function filtering(
         exogenous_data::Matrix{Z},
         control_data::Matrix{Z};
         filter_method = nothing,
-        parameters::Vector{Z} = model.parameters,
+        parameters::Vector{Z} = collect(model.parameters),
         kwargs...
 ) where {Z <: Real}
     if isnothing(filter_method)
@@ -46,7 +46,7 @@ function update(
         exogenous_data,
         control_data;
         filter_method = nothing,
-        parameters = model.parameters,
+        parameters = collect(model.parameters),
         kwargs...
 )
     if isnothing(filter_method)
@@ -80,7 +80,7 @@ function update!(
         exogenous_data,
         control_data;
         filter_method = nothing,
-        parameters = model.parameters,
+        parameters = collect(model.parameters),
         kwargs...
 )
     if isnothing(filter_method)
@@ -112,7 +112,7 @@ function loglike(
         observation_data::Matrix{Z},
         exogenous_data::Matrix{Z},
         control_data::Matrix{Z};
-        parameters::Vector{D} = model.parameters,
+        parameters::Vector{D} = collect(model.parameters),
         filter_method::AbstractFilter{D} = default_filter(model, type=eltype(parameters))
 ) where {Z <: Real, D <: Real}
     return filtering!(
@@ -138,7 +138,7 @@ function smoothing(
         control_data::Matrix{Z},
         filter_output::AbstractFilterOutput{Z};
         smoother_method::AbstractSmoother{Z} = default_smoother(model),
-        parameters::Vector{Z} = model.parameters
+        parameters::Vector{Z} = collect(model.parameters)
 ) where {Z <: Real}
     smoother_output = get_smoother_output(smoother_method, model, observation_data)
 
@@ -167,7 +167,7 @@ function filtering_and_smoothing(
         control_data;
         filter_method::AbstractFilter = default_filter(model),
         smoother_method::AbstractSmoother = default_smoother(model),
-        parameters = model.parameters
+        parameters = collect(model.parameters)
 )
 
     # Apply filtering

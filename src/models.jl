@@ -15,7 +15,7 @@ mutable struct ForecastingModel{
     """Current state of the system"""
     current_state::S
     """Model's parameters"""
-    parameters::Vector{Z}
+    parameters::Union{Vector{Z}, ComponentVector{Z}}
 
     """Constructor with full arguments."""
     function ForecastingModel(system::T,

@@ -12,7 +12,9 @@ function numerical_MLE(
         verbose = false,
         kwargs...
 ) where {Z <: Real}
-    parameters = deepcopy(model.parameters)
+    all_parameters = isa(model.parameters, Vector{Z}) ? ComponentArray(to_optimize=deepcopy(model.parameters), fixed=[]) : deepcopy(model.parameters)
+    free_parameters = all_parameters.to_optimize
+    fixed_parameters = all_parameters.fixed
     model_opt = deepcopy(model)
 
     # Log likelihood function
@@ -22,7 +24,7 @@ function numerical_MLE(
             observation_data,
             exogenous_data,
             control_data;
-            parameters = parameters
+            parameters = vcat(parameters, fixed_parameters)
         )
     end
 
@@ -33,7 +35,7 @@ function numerical_MLE(
 
     # Optimization problem setup
     optprob = OptimizationFunction(inverse_llk, diff_method)
-    prob = Optimization.OptimizationProblem(optprob, parameters)
+    prob = Optimization.OptimizationProblem(optprob, copy(free_parameters))
 
     # Solve the problem
     sol = solve(prob, optim_method; kwargs..., callback = callback_verbose)
@@ -144,8 +146,16 @@ function ExpectationMaximization(
     Q = get_Q_function(filter_method, smoother_method, ivar_obs_vec, valid_obs_vec, t_index_table, ssm,
         n_X, n_Y, n_obs, observation_data, exogenous_data, control_data)
 
+    # Parameter setup
+    all_parameters = isa(model.parameters, Vector{Z}) ? ComponentArray(to_optimize=deepcopy(model.parameters), fixed=[]) : deepcopy(model.parameters)
+    free_parameters = all_parameters.to_optimize
+    fixed_parameters = all_parameters.fixed
+    function Q_restricted(parameters, p)
+        return Q(vcat(parameters, fixed_parameters), p)
+    end
+
     # Optimization setup
-    optprob = OptimizationFunction(Q, diff_method)
+    optprob = OptimizationFunction(Q_restricted, diff_method)
 
     # Convergence setup
     llk_array = []
@@ -157,7 +167,6 @@ function ExpectationMaximization(
         maxiters_saem = maxiters_em
     end
 
-    parameters = model.parameters
     # Main EM iterations
     for i in 1:maxiters_em
         if i > 2 &&
@@ -179,7 +188,7 @@ function ExpectationMaximization(
             @info "Algorithm has not converged yet. However, due to the value of maxiters_em switch to SAEM with $iter_saem iterations to stabilize solution."
         end
 
-        filter_output, smoother_output = E_step(parameters, model, observation_data, exogenous_data, control_data, filter_method, smoother_method)
+        filter_output, smoother_output = E_step(collect(all_parameters), model, observation_data, exogenous_data, control_data, filter_method, smoother_method)
         push!(llk_array, filter_output.llk / n_obs)
         update!(rs, llk_array[end])
         push!(rstd_llk_array, get_value(rs))
@@ -194,12 +203,13 @@ function ExpectationMaximization(
         end
 
         # Optimization with smoothed data
-        found_parameters = M_step(parameters, optprob, optim_method, inputs_Q, p_optim_method, p_opt_problem)
+        found_parameters = M_step(copy(free_parameters), optprob, optim_method, inputs_Q, p_optim_method, p_opt_problem)
         if termination_flag == false
-            parameters = found_parameters
+            free_parameters = found_parameters
         else
-            parameters = alpha * found_parameters + (1 - alpha) * parameters
+            free_parameters = alpha * found_parameters + (1 - alpha) * free_parameters
         end
+        all_parameters.to_optimize = free_parameters
 
         if fit_initial_conditions == true
             model.current_state = smoother_output.smoothed_state[1]
@@ -207,20 +217,20 @@ function ExpectationMaximization(
 
         # Update catalog
         if isa(ssm, GaussianNonParametricStateSpaceSystem)
-            M_nonparametric_step!(model, parameters, exogenous_data, control_data, inputs_Q, smoother_method.n_particles, n_obs, n_X, i, custom_llrs_update_callback!)
+            M_nonparametric_step!(model, collect(all_parameters), exogenous_data, control_data, inputs_Q, smoother_method.n_particles, n_obs, n_X, i, custom_llrs_update_callback!)
         end
 
     end
 
     # Final filtering
     filter_output = filtering(model, observation_data, exogenous_data, control_data;
-        parameters = parameters, filter_method = deepcopy(filter_method))
+        parameters = collect(all_parameters), filter_method = deepcopy(filter_method))
     push!(llk_array, filter_output.llk / n_obs)
     if verbose
         println("Final | Log Likelihood: ", llk_array[end])
     end
 
-    return parameters
+    return isa(model.parameters, Vector{Z}) ? collect(all_parameters) : all_parameters
 end
 
 ############################################################################################
