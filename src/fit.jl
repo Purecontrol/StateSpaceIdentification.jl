@@ -19,12 +19,15 @@ function numerical_MLE(
 
     # Log likelihood function
     function inverse_llk(parameters, hyperparameters)
+        all_parameters_optimize = similar(all_parameters, eltype(parameters))
+        all_parameters_optimize.to_optimize .= parameters
+        all_parameters_optimize.fixed .= fixed_parameters
         return -loglike(
             model_opt,
             observation_data,
             exogenous_data,
             control_data;
-            parameters = vcat(parameters, fixed_parameters)
+            parameters = collect(all_parameters_optimize)
         )
     end
 
@@ -151,7 +154,10 @@ function ExpectationMaximization(
     free_parameters = all_parameters.to_optimize
     fixed_parameters = all_parameters.fixed
     function Q_restricted(parameters, p)
-        return Q(vcat(parameters, fixed_parameters), p)
+        all_parameters_optimize = similar(all_parameters, eltype(parameters))
+        all_parameters_optimize.to_optimize .= parameters
+        all_parameters_optimize.fixed .= fixed_parameters
+        return Q(collect(all_parameters_optimize), p)
     end
 
     # Optimization setup
