@@ -96,8 +96,9 @@ function M_nonparametric_step!(model, parameters, exogenous_data, control_data, 
     update_llrs!(model.system, analog_indexes, analog_times_in_days, analog_states, exogenous_data, control_data, update_function! = custom_llrs_update_callback!)
     
     # Search for good number of neighbors
+    max_neighbors = maximum([size(llr.analog_inputs, 2) for llr in model.system.llrs])
     if n_iteration % 3 == 1
-        k_list = collect(50:5:450)
+        k_list = Int.(round.(LinRange(50, max_neighbors, 81)))
         opt_k, _ = find_optimal_number_neighbors(
             model.system,
             parameters,
@@ -209,7 +210,18 @@ function ExpectationMaximization(
         end
 
         # Optimization with smoothed data
-        found_parameters = M_step(copy(free_parameters), optprob, optim_method, inputs_Q, p_optim_method, p_opt_problem)
+        if ~(ssm.n_X == 1 && ssm.n_Y == 1 && size(free_parameters, 1) == 2 && size(all_parameters, 1) == 2)
+            found_parameters = M_step(copy(free_parameters), optprob, optim_method, inputs_Q, p_optim_method, p_opt_problem)
+        else
+            @warn "This is a developpement case. It will work only if you have 2 parameters for model uncertainty and observation uncertainty."
+            particles = vcat(map(x->x.particles_state, smoother_output.smoothed_particles_swarm)...)
+            diff1 = particles[2:(end), :] - vcat([StateSpaceIdentification.transition(ssm, particles[i:i, :], exogenous_data[i, :], control_data[i, :], free_parameters, t_index_table[i]) for i in 1:n_obs]...)
+            diff2 = observation_data[valid_obs_vec, :] .- vcat([StateSpaceIdentification.observation(ssm, particles[i:i, :], exogenous_data[i, :], free_parameters, t_index_table[i]) for i in 1:n_obs]...)[valid_obs_vec, :]
+            approx_η = sqrt(mean(diff1.^2))
+            approx_ϵ = sqrt(mean(diff2.^2))
+            found_parameters = [approx_η, approx_ϵ]
+            println(found_parameters)
+        end
         if termination_flag == false
             free_parameters = found_parameters
         else
@@ -218,7 +230,13 @@ function ExpectationMaximization(
         all_parameters.to_optimize = free_parameters
 
         if fit_initial_conditions == true
-            model.current_state = smoother_output.smoothed_state[1]
+            if isa(smoother_output, KalmanSmootherOutput)
+                model.current_state = smoother_output.smoothed_state[1]
+            elseif isa(smoother_output, AbstractStochasticMonteCarloSmootherOutput)
+                model.current_state = smoother_output.smoothed_particles_swarm[1]
+            else
+                error("Unable to get the first value of the smoother.")
+            end
         end
 
         # Update catalog
