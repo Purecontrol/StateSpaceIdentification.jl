@@ -1,4 +1,5 @@
 using NearestNeighbors
+using Logging
 import Base: convert
 
 const AVAILABLE_KERNEL_TYPES = ["rectangular", "tricube"]
@@ -123,8 +124,12 @@ function (llr::LocalLinearRegressor{Z, T})(
         t_mod = t % 1.0 # Time modulo 1 day
 
         # Condition 1: Check indices within the range [t - min_lag_in_days, t + min_lag_in_days]
-        in_range = (t - min_lag_in_days - TIME_PRECISION .<= analog_times_in_days) .&
-                   (analog_times_in_days .<= t + min_lag_in_days + TIME_PRECISION)
+        if min_lag_in_days != 0.0
+            in_range = (t - min_lag_in_days - TIME_PRECISION .<= analog_times_in_days) .&
+                    (analog_times_in_days .<= t + min_lag_in_days + TIME_PRECISION)
+        else
+            in_range = repeat([false], n_analogs)
+        end
 
         # Condition 2: Check indices modulo within the temporal range (for cyclic lag)
         if !isnothing(max_cyclic_lag)
@@ -388,8 +393,11 @@ function find_optimal_number_neighbors(
         try
             err = 0.0 # Initialize error for this neighbor count
             for idx in 1:n_t
+                local mean_xf
                 # Predict output using the transition function of the state space system
-                mean_xf = transition(
+                my_logger = ConsoleLogger(stderr, Logging.Error)
+                with_logger(my_logger) do
+                    mean_xf = transition(
                     ssm,
                     reshape(inputs_states[idx, :], :, 1),
                     exogenous_data[idx, :],
@@ -397,7 +405,8 @@ function find_optimal_number_neighbors(
                     parameters,
                     time_data[idx]
                 )
-
+                end
+                
                 # Calculate innovation (error)
                 innov = target_states[idx, :] .- mean_xf
 
